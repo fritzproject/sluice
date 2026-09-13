@@ -7,7 +7,7 @@ dicono gli **estrattori**, moduli indipendenti che il nucleo non conosce
 singolarmente.
 
 🇬🇧 [Read in English](README.md) · 📦 [Guida all'installazione](docs/install.it.md) ·
-🧩 [Scrivere un estrattore](docs/writing-extractors.it.md)
+🧩 [Scrivere un estrattore](docs/writing-extractors.it.md) · 🔒 [Dietro una VPN](docs/vpn.it.md)
 
 Una *sluice box* è il canale in cui i cercatori d'oro fanno scorrere il
 materiale: una paratoia regola il flusso, e per strada resta ciò che interessa
@@ -189,7 +189,7 @@ punto di partenza: poi si regolano dall'interfaccia e vengono salvati.
 
 ```bash
 pip install -e ".[web,dev]"
-pytest          # 32 test, nessuno richiede la rete
+pytest          # 33 test, nessuno richiede la rete
 ruff check .
 ```
 

@@ -7,7 +7,7 @@ re-checking sources that grow. What sits behind a URL is the job of
 particular.
 
 🇮🇹 [Leggi in italiano](README.it.md) · 📦 [Install guide](docs/install.md) ·
-🧩 [Write an extractor](docs/writing-extractors.md)
+🧩 [Write an extractor](docs/writing-extractors.md) · 🔒 [Behind a VPN](docs/vpn.md)
 
 A sluice box is the channel prospectors run material through: a gate regulates
 the flow, and what you actually want is caught on the way. Open it wider when
@@ -185,7 +185,7 @@ and saved with the state.
 
 ```bash
 pip install -e ".[web,dev]"
-pytest          # 32 tests, no network required
+pytest          # 33 tests, no network required
 ruff check .
 ```
 

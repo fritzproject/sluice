@@ -223,6 +223,9 @@ collegamento sia lo scaricamento dei byte passano da **quella stessa uscita**.
 lo ha richiesto, quindi separare le due fasi fa rifiutare il trasferimento con
 un errore che sembra inspiegabile.
 
+Due modi per configurarlo con gluetun, con i compromessi spiegati:
+[usare Sluicebox dietro una VPN](vpn.it.md).
+
 La rotazione distribuisce il carico fra le uscite. Non rende anonimo nulla, e
 non è un modo per aggirare le condizioni d'uso di una sorgente.
 

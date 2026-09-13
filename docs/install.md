@@ -218,6 +218,9 @@ downloading the bytes go through **that same exit**. This is deliberate: some
 sources sign the download link against the address that requested it, so
 splitting the two gets the transfer rejected with a misleading error.
 
+Two ways to set this up with gluetun, with the trade-offs spelled out:
+[running behind a VPN](vpn.md).
+
 Rotation spreads load across exits. It does not make anything anonymous, and it
 is not a way around a source's terms of use.
 
