@@ -127,9 +127,26 @@ sluice get https://example.org/dataset.zip -o ~/Downloads
 | `rss` | RSS/Atom feeds with enclosures (podcasts, videocasts) |
 | `direct` | a plain HTTP(S) link to a file |
 
-Need another source? An extractor is **four methods** and installs as a
-separate package — the core is never touched. See
-[docs/writing-extractors.md](docs/writing-extractors.md).
+## Add-ons
+
+Extractors for other sources install as ordinary Python packages. There is no
+configuration step: Sluice discovers them at startup through their entry point.
+
+```bash
+pip install ./examples/sluice-extractor-nasa
+sluice extractors
+#   nasa           NASA Image and Video Library (public domain)
+#   archive_org    Internet Archive items
+#   …
+```
+
+Removing one is `pip uninstall`. A registered extractor takes precedence over
+the built-in ones, so a default behaviour can be replaced without forking.
+
+[`examples/sluice-extractor-nasa`](examples/sluice-extractor-nasa) is a
+complete, working add-on in about 90 lines — copy it as a starting point. The
+full guide is [docs/writing-extractors.md](docs/writing-extractors.md): an
+extractor is **four methods**, and the core is never touched.
 
 ---
 

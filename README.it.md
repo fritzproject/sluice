@@ -128,9 +128,29 @@ sluice get https://esempio.org/dataset.zip -o ~/Download
 | `rss` | feed RSS/Atom con allegati (podcast, videocast) |
 | `direct` | un collegamento HTTP(S) a un file |
 
-Ne serve un altro? Sono **quattro metodi**, e si installa come pacchetto
-separato senza toccare il nucleo. Vedi
-[docs/writing-extractors.it.md](docs/writing-extractors.it.md).
+## Componenti aggiuntivi
+
+Gli estrattori per altre sorgenti si installano come normali pacchetti Python.
+Non c'è nessun passaggio di configurazione: Sluice li scopre da solo all'avvio
+tramite il loro entry point.
+
+```bash
+pip install ./examples/sluice-extractor-nasa
+sluice extractors
+#   nasa           NASA Image and Video Library (public domain)
+#   archive_org    Internet Archive items
+#   …
+```
+
+Per rimuoverne uno basta `pip uninstall`. Un estrattore registrato ha
+precedenza su quelli inclusi, quindi si può sostituire un comportamento
+predefinito senza dover forkare il progetto.
+
+[`examples/sluice-extractor-nasa`](examples/sluice-extractor-nasa) è un
+componente completo e funzionante in un centinaio di righe: copialo come punto
+di partenza. La guida completa è
+[docs/writing-extractors.it.md](docs/writing-extractors.it.md) — un estrattore
+sono **quattro metodi**, e il nucleo non si tocca.
 
 ---
 

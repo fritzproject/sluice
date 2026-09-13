@@ -1,0 +1,23 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "sluice-extractor-nasa"
+version = "0.1.0"
+description = "NASA Image and Video Library extractor for Sluice — an example add-on"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+# Deliberately not declaring the core as a dependency: the distribution name
+# is not on PyPI, so pip would resolve it to an unrelated package of the same
+# name and fail. An add-on is always installed next to an existing core
+# anyway — this only matters once the core is published under its final name.
+dependencies = []
+
+# This is the whole plug-in mechanism. Install the package and Sluice finds it
+# at startup: no configuration file, and no change to the core.
+[project.entry-points."sluice.extractors"]
+nasa = "sluice_extractor_nasa:NasaExtractor"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/sluice_extractor_nasa"]
