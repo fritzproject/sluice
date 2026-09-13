@@ -6,11 +6,11 @@ import re
 from typing import TYPE_CHECKING
 from urllib.parse import unquote
 
-from sluice.extractors.base import Extractor
-from sluice.models import Item, Source, Target
+from sluicebox.extractors.base import Extractor
+from sluicebox.models import Item, Source, Target
 
 if TYPE_CHECKING:
-    from sluice.extractors.base import Context
+    from sluicebox.extractors.base import Context
 
 API_ENDPOINT = "https://commons.wikimedia.org/w/api.php"
 CATEGORY_PATTERN = re.compile(r"commons\.wikimedia\.org/wiki/(Category:[^?#]+)", re.I)

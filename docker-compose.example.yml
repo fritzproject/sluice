@@ -1,9 +1,9 @@
 # Copy to docker-compose.yml and adjust the paths.
 # Full walkthrough, permissions included: docs/install.md
 services:
-  sluice:
+  sluicebox:
     build: .
-    container_name: sluice
+    container_name: sluicebox
     restart: unless-stopped
     ports:
       # Drop the "127.0.0.1:" prefix only if you want it reachable from the
@@ -19,15 +19,15 @@ services:
       PGID: "1000"
       # Starting points only: these are adjustable from the interface and are
       # then saved to /state, which takes precedence from that moment on.
-      SLUICE_CONCURRENT_TRANSFERS: "4"
-      SLUICE_PARALLEL_SOURCES: "3"
+      SLUICEBOX_CONCURRENT_TRANSFERS: "4"
+      SLUICEBOX_PARALLEL_SOURCES: "3"
       # Random pause between items, in seconds. Worth setting against sources
       # that dislike bursts of back-to-back requests.
-      SLUICE_PACING_MIN_SECONDS: "0"
-      SLUICE_PACING_MAX_SECONDS: "0"
+      SLUICEBOX_PACING_MIN_SECONDS: "0"
+      SLUICEBOX_PACING_MAX_SECONDS: "0"
       # Network exits used in rotation, one per item. Resolving and downloading
       # the same item always go through the same one.
-      # SLUICE_PROXIES: "http://proxy-a:8888,http://proxy-b:8888"
+      # SLUICEBOX_PROXIES: "http://proxy-a:8888,http://proxy-b:8888"
     volumes:
       # Where the files land. Share this one with your media server.
       - /srv/downloads:/downloads

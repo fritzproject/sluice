@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "sluice"
-version = "0.1.0"
-description = "Gestore di download a moduli: coda, portata regolabile, ripresa dei trasferimenti interrotti"
+name = "sluicebox"
+version = "0.2.0"
+description = "Pluggable download manager: queue, adjustable throughput, resumable transfers"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { file = "LICENSE" }
@@ -24,14 +24,14 @@ web = ["flask>=3.0"]
 dev = ["pytest>=8.0", "ruff>=0.6"]
 
 [project.scripts]
-sluice = "sluice.cli:main"
+sluicebox = "sluicebox.cli:main"
 
-# Gli estrattori di terze parti si dichiarano in questo gruppo e vengono
-# caricati all'avvio senza toccare il nucleo. Vedi docs/writing-extractors.md.
-[project.entry-points."sluice.extractors"]
+# Third-party extractors declare themselves in this group and are discovered
+# at startup without touching the core. See docs/writing-extractors.md.
+[project.entry-points."sluicebox.extractors"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/sluice"]
+packages = ["src/sluicebox"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

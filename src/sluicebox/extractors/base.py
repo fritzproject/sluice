@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     import requests
 
-    from sluice.models import Item, Source, Target
+    from sluicebox.models import Item, Source, Target
 
 
 @dataclass

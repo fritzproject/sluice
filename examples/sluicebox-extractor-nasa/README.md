@@ -1,6 +1,6 @@
-# sluice-extractor-nasa
+# sluicebox-extractor-nasa
 
-An example **add-on** for [Sluice](https://github.com/fritzproject/sluice):
+An example **add-on** for [Sluicebox](https://github.com/fritzproject/sluice):
 a complete third-party extractor, in its own package, that plugs in through an
 entry point without the core knowing anything about it.
 
@@ -10,33 +10,33 @@ public domain material, and an API that needs no key, so it runs as-is.
 ## Install
 
 ```bash
-pip install ./examples/sluice-extractor-nasa      # from a clone
-# or, once published:  pip install sluice-extractor-nasa
+pip install ./examples/sluicebox-extractor-nasa      # from a clone
+# or, once published:  pip install sluicebox-extractor-nasa
 ```
 
-Then confirm Sluice picked it up:
+Then confirm Sluicebox picked it up:
 
 ```bash
-sluice extractors
+sluicebox extractors
 #   nasa           NASA Image and Video Library (public domain)
 #   archive_org    Internet Archive items
 #   …
 ```
 
-Nothing else to configure. Removing it is `pip uninstall sluice-extractor-nasa`.
+Nothing else to configure. Removing it is `pip uninstall sluicebox-extractor-nasa`.
 
 ## Use
 
 A whole search — every matching image, queued:
 
 ```bash
-sluice get "https://images.nasa.gov/search?q=apollo%2011" -o ~/Pictures
+sluicebox get "https://images.nasa.gov/search?q=apollo%2011" -o ~/Pictures
 ```
 
 A single item:
 
 ```bash
-sluice get https://images.nasa.gov/details/as11-40-5874 -o ~/Pictures
+sluicebox get https://images.nasa.gov/details/as11-40-5874 -o ~/Pictures
 ```
 
 Each picture is published in several renditions; the extractor picks the

@@ -1,4 +1,4 @@
-# Sluice
+# Sluicebox
 
 **Gestore di download a moduli.** Il nucleo si occupa di coda, portata
 regolabile, tentativi, ripresa dei trasferimenti interrotti, denominazione dei
@@ -9,8 +9,10 @@ singolarmente.
 🇬🇧 [Read in English](README.md) · 📦 [Guida all'installazione](docs/install.it.md) ·
 🧩 [Scrivere un estrattore](docs/writing-extractors.it.md)
 
-Una chiusa è un canale con una paratoia che regola il flusso: si apre di più
-quando c'è spazio, si stringe quando serve andare piano. L'idea è tutta lì.
+Una *sluice box* è il canale in cui i cercatori d'oro fanno scorrere il
+materiale: una paratoia regola il flusso, e per strada resta ciò che interessa
+davvero. Si apre di più quando c'è spazio, si stringe quando serve andare
+piano. L'idea è tutta lì.
 
 ---
 
@@ -25,7 +27,7 @@ Scaricare un file è banale. Scaricarne cinquecento senza perderne nessuno no:
 - una raccolta con un solo elemento occupa un posto e lascia fermi gli altri
 - gli elementi nuovi di una raccolta che cresce vanno cercati a mano ogni volta
 
-Sluice nasce da questi cinque problemi, incontrati uno per uno. Le soluzioni
+Sluicebox nasce da questi cinque problemi, incontrati uno per uno. Le soluzioni
 stanno nel nucleo, quindi valgono per ogni estrattore — compreso il tuo.
 
 ---
@@ -52,7 +54,7 @@ Interfaccia web, API HTTP e riga di comando.
 
 ```bash
 pip install -e ".[web]"
-sluice serve --port 8420        # poi apri http://localhost:8420
+sluicebox serve --port 8420        # poi apri http://localhost:8420
 ```
 
 Con Docker — volumi, permessi e reverse proxy nella
@@ -72,17 +74,17 @@ Sorgenti reali e lecite, da provare subito.
 **Un libro di pubblico dominio, in tutti i formati pubblicati**
 
 ```bash
-sluice get https://www.gutenberg.org/ebooks/2009 -o ~/Libri
+sluicebox get https://www.gutenberg.org/ebooks/2009 -o ~/Libri
 ```
 
-Project Gutenberg pubblica opere il cui diritto d'autore è scaduto. Sluice
+Project Gutenberg pubblica opere il cui diritto d'autore è scaduto. Sluicebox
 scarica le versioni EPUB, HTML e testo, saltando copertine e file di servizio.
 
 **Un'intera categoria di Wikimedia Commons**
 
 ```bash
-sluice inspect https://commons.wikimedia.org/wiki/Category:Lighthouses_in_Italy
-sluice get https://commons.wikimedia.org/wiki/Category:Lighthouses_in_Italy -o ~/Immagini
+sluicebox inspect https://commons.wikimedia.org/wiki/Category:Lighthouses_in_Italy
+sluicebox get https://commons.wikimedia.org/wiki/Category:Lighthouses_in_Italy -o ~/Immagini
 ```
 
 Su Commons è tutto di pubblico dominio o con licenza libera. Le categorie
@@ -93,7 +95,7 @@ l'attribuzione è quasi sempre richiesta.
 **Un podcast, arretrati compresi e tutto quello che uscirà poi**
 
 ```bash
-sluice get https://feeds.example.org/show.xml --watch -o ~/Podcast
+sluicebox get https://feeds.example.org/show.xml --watch -o ~/Podcast
 ```
 
 `--watch` tiene il feed sotto osservazione: le puntate nuove si accodano da
@@ -103,7 +105,7 @@ tempo.
 **Una registrazione di concerto da Internet Archive**
 
 ```bash
-sluice get https://archive.org/details/gd1977-05-08.sbd.hicks.4982.sbeok.shnf -o ~/Musica
+sluicebox get https://archive.org/details/gd1977-05-08.sbd.hicks.4982.sbeok.shnf -o ~/Musica
 ```
 
 Internet Archive raccoglie registrazioni dal vivo autorizzate, libri di
@@ -113,7 +115,7 @@ contenere centinaia di file.
 **Un file secco**
 
 ```bash
-sluice get https://esempio.org/dataset.zip -o ~/Download
+sluicebox get https://esempio.org/dataset.zip -o ~/Download
 ```
 
 ---
@@ -131,12 +133,12 @@ sluice get https://esempio.org/dataset.zip -o ~/Download
 ## Componenti aggiuntivi
 
 Gli estrattori per altre sorgenti si installano come normali pacchetti Python.
-Non c'è nessun passaggio di configurazione: Sluice li scopre da solo all'avvio
+Non c'è nessun passaggio di configurazione: Sluicebox li scopre da solo all'avvio
 tramite il loro entry point.
 
 ```bash
-pip install ./examples/sluice-extractor-nasa
-sluice extractors
+pip install ./examples/sluicebox-extractor-nasa
+sluicebox extractors
 #   nasa           NASA Image and Video Library (public domain)
 #   archive_org    Internet Archive items
 #   …
@@ -146,7 +148,7 @@ Per rimuoverne uno basta `pip uninstall`. Un estrattore registrato ha
 precedenza su quelli inclusi, quindi si può sostituire un comportamento
 predefinito senza dover forkare il progetto.
 
-[`examples/sluice-extractor-nasa`](examples/sluice-extractor-nasa) è un
+[`examples/sluicebox-extractor-nasa`](examples/sluicebox-extractor-nasa) è un
 componente completo e funzionante in un centinaio di righe: copialo come punto
 di partenza. La guida completa è
 [docs/writing-extractors.it.md](docs/writing-extractors.it.md) — un estrattore
@@ -156,19 +158,19 @@ sono **quattro metodi**, e il nucleo non si tocca.
 
 ## Configurazione
 
-Tutto via ambiente, con prefisso `SLUICE_`. I valori di portata sono solo il
+Tutto via ambiente, con prefisso `SLUICEBOX_`. I valori di portata sono solo il
 punto di partenza: poi si regolano dall'interfaccia e vengono salvati.
 
 | Variabile | Predefinito | |
 |---|---|---|
-| `SLUICE_DOWNLOAD_ROOT` | `./downloads` | dove finiscono i file |
-| `SLUICE_STATE_DIR` | `./state` | coda e registro |
-| `SLUICE_CONCURRENT_TRANSFERS` | `4` | trasferimenti simultanei totali |
-| `SLUICE_PARALLEL_SOURCES` | `3` | quante sorgenti lavorare insieme |
-| `SLUICE_PACING_MIN_SECONDS` / `_MAX_` | `0` | pausa casuale fra un elemento e l'altro |
-| `SLUICE_MAX_RETRIES` | `4` | tentativi prima di arrendersi |
-| `SLUICE_RECHECK_INTERVAL_SECONDS` | `21600` | ogni quanto ricontrollare le sorgenti sorvegliate |
-| `SLUICE_PROXIES` | — | uscite separate da virgola, usate a rotazione |
+| `SLUICEBOX_DOWNLOAD_ROOT` | `./downloads` | dove finiscono i file |
+| `SLUICEBOX_STATE_DIR` | `./state` | coda e registro |
+| `SLUICEBOX_CONCURRENT_TRANSFERS` | `4` | trasferimenti simultanei totali |
+| `SLUICEBOX_PARALLEL_SOURCES` | `3` | quante sorgenti lavorare insieme |
+| `SLUICEBOX_PACING_MIN_SECONDS` / `_MAX_` | `0` | pausa casuale fra un elemento e l'altro |
+| `SLUICEBOX_MAX_RETRIES` | `4` | tentativi prima di arrendersi |
+| `SLUICEBOX_RECHECK_INTERVAL_SECONDS` | `21600` | ogni quanto ricontrollare le sorgenti sorvegliate |
+| `SLUICEBOX_PROXIES` | — | uscite separate da virgola, usate a rotazione |
 
 ## API
 
@@ -196,5 +198,5 @@ ruff check .
 MIT — vedi [LICENSE](LICENSE).
 
 Gli estrattori distribuiti separatamente hanno licenza propria, e ciascuno
-risponde della sorgente che tratta. Sluice non ne include nessuno per sorgenti
+risponde della sorgente che tratta. Sluicebox non ne include nessuno per sorgenti
 i cui contenuti non siano liberamente disponibili, e non ne promuove alcuno.

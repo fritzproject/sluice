@@ -16,10 +16,10 @@ if [ "$(id -u)" != "0" ]; then
 fi
 
 if ! getent group "$PGID" >/dev/null 2>&1; then
-    groupadd -g "$PGID" sluice
+    groupadd -g "$PGID" sluicebox
 fi
 if ! getent passwd "$PUID" >/dev/null 2>&1; then
-    useradd -u "$PUID" -g "$PGID" -M -s /usr/sbin/nologin sluice
+    useradd -u "$PUID" -g "$PGID" -M -s /usr/sbin/nologin sluicebox
 fi
 
 # Only the top level: a recursive chown over a large download folder would

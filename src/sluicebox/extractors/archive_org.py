@@ -5,11 +5,11 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING
 
-from sluice.extractors.base import Extractor
-from sluice.models import Item, Source, Target
+from sluicebox.extractors.base import Extractor
+from sluicebox.models import Item, Source, Target
 
 if TYPE_CHECKING:
-    from sluice.extractors.base import Context
+    from sluicebox.extractors.base import Context
 
 ITEM_PATTERN = re.compile(r"archive\.org/(?:details|download)/([^/?#]+)")
 METADATA_ENDPOINT = "https://archive.org/metadata/{identifier}"

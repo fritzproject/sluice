@@ -1,4 +1,4 @@
-# Installing Sluice
+# Installing Sluicebox
 
 🇮🇹 [Leggi in italiano](install.it.md)
 
@@ -23,9 +23,9 @@ pip install -e ".[web]"
 Check it works:
 
 ```bash
-sluice extractors
-sluice inspect https://www.gutenberg.org/ebooks/2009
-sluice serve --port 8420
+sluicebox extractors
+sluicebox inspect https://www.gutenberg.org/ebooks/2009
+sluicebox serve --port 8420
 ```
 
 By default files land in `./downloads` and the queue in `./state`, both
@@ -53,9 +53,9 @@ The interface is on `http://<host>:8420`.
 
 ```yaml
 services:
-  sluice:
+  sluicebox:
     build: .                       # or image: ghcr.io/... once published
-    container_name: sluice
+    container_name: sluicebox
     restart: unless-stopped
     ports:
       - "8420:8420"                # host:container
@@ -63,8 +63,8 @@ services:
       TZ: Europe/Rome
       PUID: "1000"                 # see "Folders and permissions"
       PGID: "1000"
-      SLUICE_CONCURRENT_TRANSFERS: "4"
-      SLUICE_PARALLEL_SOURCES: "3"
+      SLUICEBOX_CONCURRENT_TRANSFERS: "4"
+      SLUICEBOX_PARALLEL_SOURCES: "3"
     volumes:
       - /srv/downloads:/downloads  # where the files go
       - ./state:/state             # queue, settings, log
@@ -84,7 +84,7 @@ The `Dockerfile` in the repository takes two build arguments so the process
 inside the container runs as **your** user rather than root:
 
 ```bash
-docker build --build-arg UID=$(id -u) --build-arg GID=$(id -g) -t sluice .
+docker build --build-arg UID=$(id -u) --build-arg GID=$(id -g) -t sluicebox .
 ```
 
 With compose:
@@ -101,7 +101,7 @@ With compose:
 
 ## 3. Behind a reverse proxy
 
-Sluice speaks plain HTTP and has **no authentication of its own**. Anything
+Sluicebox speaks plain HTTP and has **no authentication of its own**. Anything
 that can reach port 8420 can queue downloads and change settings. Do not
 expose it to the internet directly: put it behind a proxy that handles TLS and
 authentication.
@@ -121,7 +121,7 @@ sluice.example.org {
 
 ```nginx
 location / {
-    auth_basic           "Sluice";
+    auth_basic           "Sluicebox";
     auth_basic_user_file /etc/nginx/.htpasswd;
     proxy_pass           http://127.0.0.1:8420;
     proxy_set_header     Host $host;
@@ -169,7 +169,7 @@ refused.
 
 ### The trap worth knowing about
 
-If Sluice ever ran as root and created the destination folder itself, that
+If Sluicebox ever ran as root and created the destination folder itself, that
 folder now belongs to root — and switching to a normal user afterwards is not
 enough, because creating a file inside a folder requires write permission **on
 the folder**, not on its parent. Symptom: existing collections keep working
@@ -184,9 +184,9 @@ sudo chown -R 1000:1000 /srv/downloads
 ### Checking
 
 ```bash
-docker exec sluice id
-docker exec sluice touch /downloads/write-test && echo OK
-docker exec sluice rm /downloads/write-test
+docker exec sluicebox id
+docker exec sluicebox touch /downloads/write-test && echo OK
+docker exec sluicebox rm /downloads/write-test
 ls -ln /srv/downloads               # owner must match the other programs
 ```
 
@@ -196,22 +196,22 @@ ls -ln /srv/downloads               # owner must match the other programs
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `SLUICE_DOWNLOAD_ROOT` | `./downloads` | where files land |
-| `SLUICE_STATE_DIR` | `./state` | queue, settings, log |
-| `SLUICE_CONCURRENT_TRANSFERS` | `4` | total simultaneous transfers |
-| `SLUICE_PARALLEL_SOURCES` | `3` | how many sources at once |
-| `SLUICE_PACING_MIN_SECONDS` | `0` | minimum random pause between items |
-| `SLUICE_PACING_MAX_SECONDS` | `0` | maximum random pause |
-| `SLUICE_MAX_RETRIES` | `4` | attempts before an item is marked failed |
-| `SLUICE_RECHECK_INTERVAL_SECONDS` | `21600` | how often watched sources are re-checked |
-| `SLUICE_TIMEOUT` | `30` | per-request timeout, seconds |
-| `SLUICE_PROXIES` | — | comma-separated exits, used in rotation |
-| `SLUICE_USER_AGENT` | `Sluice/0.2 …` | how Sluice identifies itself |
+| `SLUICEBOX_DOWNLOAD_ROOT` | `./downloads` | where files land |
+| `SLUICEBOX_STATE_DIR` | `./state` | queue, settings, log |
+| `SLUICEBOX_CONCURRENT_TRANSFERS` | `4` | total simultaneous transfers |
+| `SLUICEBOX_PARALLEL_SOURCES` | `3` | how many sources at once |
+| `SLUICEBOX_PACING_MIN_SECONDS` | `0` | minimum random pause between items |
+| `SLUICEBOX_PACING_MAX_SECONDS` | `0` | maximum random pause |
+| `SLUICEBOX_MAX_RETRIES` | `4` | attempts before an item is marked failed |
+| `SLUICEBOX_RECHECK_INTERVAL_SECONDS` | `21600` | how often watched sources are re-checked |
+| `SLUICEBOX_TIMEOUT` | `30` | per-request timeout, seconds |
+| `SLUICEBOX_PROXIES` | — | comma-separated exits, used in rotation |
+| `SLUICEBOX_USER_AGENT` | `Sluicebox/0.2 …` | how Sluicebox identifies itself |
 
 The four throughput values are only **starting points**: change them from the
 interface and they are saved to `/state`, taking precedence from then on.
 
-### About `SLUICE_PROXIES`
+### About `SLUICEBOX_PROXIES`
 
 Each item is assigned one exit in rotation, and both resolving the link and
 downloading the bytes go through **that same exit**. This is deliberate: some
@@ -240,10 +240,10 @@ than starting over.
 ## Troubleshooting
 
 **`no extractor can handle this URL`** — no installed extractor recognises it.
-Check `sluice extractors`; `direct` only accepts `http`/`https`.
+Check `sluicebox extractors`; `direct` only accepts `http`/`https`.
 
 **Everything fails with HTTP 429 or 503** — you are asking too fast. Lower
-*simultaneous transfers* and set a pause (`SLUICE_PACING_MIN_SECONDS` 2,
+*simultaneous transfers* and set a pause (`SLUICEBOX_PACING_MIN_SECONDS` 2,
 `_MAX_` 7). The polite settings are almost always faster overall, because
 refused requests cost retries.
 

@@ -6,11 +6,11 @@ from typing import TYPE_CHECKING
 
 from flask import Flask, jsonify, request, send_from_directory
 
-from sluice import extractors
-from sluice.engine import Engine
+from sluicebox import extractors
+from sluicebox.engine import Engine
 
 if TYPE_CHECKING:
-    from sluice.config import Config, Settings
+    from sluicebox.config import Config, Settings
 
 STATIC_DIR = "static"
 
@@ -120,7 +120,7 @@ def create_app(engine: Engine | None = None, *, config: Config | None = None,
 
     @app.get("/api/settings")
     def get_settings():  # noqa: ANN202
-        from sluice.config import BOUNDS
+        from sluicebox.config import BOUNDS
         return jsonify({"settings": core().settings.as_dict(), "bounds": BOUNDS})
 
     @app.post("/api/settings")

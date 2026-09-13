@@ -8,17 +8,17 @@ import sys
 import time
 from pathlib import Path
 
-from sluice import __version__, extractors
-from sluice.config import Config, Settings
-from sluice.engine import Engine
+from sluicebox import __version__, extractors
+from sluicebox.config import Config, Settings
+from sluicebox.engine import Engine
 
 
 def _config(args: argparse.Namespace) -> Config:
     """Command line beats the environment, which beats the defaults.
 
     The flags must default to None for this to work: passing their value
-    unconditionally would silently override SLUICE_DOWNLOAD_ROOT and
-    SLUICE_STATE_DIR, which is exactly how a container ends up trying to write
+    unconditionally would silently override SLUICEBOX_DOWNLOAD_ROOT and
+    SLUICEBOX_STATE_DIR, which is exactly how a container ends up trying to write
     its queue into a read-only working directory.
     """
     overrides: dict[str, Path] = {}
@@ -66,7 +66,7 @@ def _cmd_inspect(args: argparse.Namespace) -> int:
 
 
 def _cmd_serve(args: argparse.Namespace) -> int:
-    from sluice.web.app import create_app
+    from sluicebox.web.app import create_app
     config = _config(args)
     app = create_app(config=config)
     print(f"Sluice on http://{args.host}:{args.port}  ->  {config.download_root}")
@@ -86,9 +86,9 @@ def build_parser() -> argparse.ArgumentParser:
         prog="sluice", description="Pluggable download manager")
     parser.add_argument("--version", action="version", version=f"sluice {__version__}")
     parser.add_argument("-o", "--output", default=None,
-                        help="destination folder (default: SLUICE_DOWNLOAD_ROOT or ./downloads)")
+                        help="destination folder (default: SLUICEBOX_DOWNLOAD_ROOT or ./downloads)")
     parser.add_argument("--state", default=None,
-                        help="where queue and log are kept (default: SLUICE_STATE_DIR or ./state)")
+                        help="where queue and log are kept (default: SLUICEBOX_STATE_DIR or ./state)")
     parser.add_argument("-v", "--verbose", action="store_true")
 
     sub = parser.add_subparsers(dest="command", required=True)

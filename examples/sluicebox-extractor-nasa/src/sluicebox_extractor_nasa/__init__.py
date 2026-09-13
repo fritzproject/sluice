@@ -2,6 +2,6 @@
 
 from __future__ import annotations
 
-from sluice_extractor_nasa.extractor import NasaExtractor
+from sluicebox_extractor_nasa.extractor import NasaExtractor
 
 __all__ = ["NasaExtractor"]

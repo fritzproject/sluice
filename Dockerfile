@@ -15,13 +15,13 @@ RUN chmod +x /usr/local/bin/docker-entrypoint.sh && mkdir -p /downloads /state
 
 # PUID/PGID are read at startup, so one image works for everyone: set them to
 # whatever user the programs sharing the download folder run as.
-ENV SLUICE_DOWNLOAD_ROOT=/downloads \
-    SLUICE_STATE_DIR=/state \
+ENV SLUICEBOX_DOWNLOAD_ROOT=/downloads \
+    SLUICEBOX_STATE_DIR=/state \
     PUID=1000 \
     PGID=1000
 
 VOLUME ["/downloads", "/state"]
 EXPOSE 8420
 
-ENTRYPOINT ["docker-entrypoint.sh", "sluice"]
+ENTRYPOINT ["docker-entrypoint.sh", "sluicebox"]
 CMD ["serve", "--port", "8420"]

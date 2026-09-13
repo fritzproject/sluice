@@ -10,16 +10,16 @@ from __future__ import annotations
 import logging
 from importlib.metadata import entry_points
 
-from sluice.extractors.archive_org import ArchiveOrgExtractor
-from sluice.extractors.base import Context, Extractor
-from sluice.extractors.direct import DirectExtractor
-from sluice.extractors.gutenberg import GutenbergExtractor
-from sluice.extractors.rss import RssExtractor
-from sluice.extractors.wikimedia import WikimediaCommonsExtractor
+from sluicebox.extractors.archive_org import ArchiveOrgExtractor
+from sluicebox.extractors.base import Context, Extractor
+from sluicebox.extractors.direct import DirectExtractor
+from sluicebox.extractors.gutenberg import GutenbergExtractor
+from sluicebox.extractors.rss import RssExtractor
+from sluicebox.extractors.wikimedia import WikimediaCommonsExtractor
 
 logger = logging.getLogger(__name__)
 
-ENTRY_POINT_GROUP = "sluice.extractors"
+ENTRY_POINT_GROUP = "sluicebox.extractors"
 
 #: Order matters: the first extractor that recognises a URL wins, and `direct`
 #: accepts any http(s) URL, so it has to stay last as the fallback.

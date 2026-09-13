@@ -6,14 +6,14 @@ import json
 
 import pytest
 
-from sluice import extractors
-from sluice.extractors.archive_org import ArchiveOrgExtractor
-from sluice.extractors.base import Context, Extractor
-from sluice.extractors.direct import DirectExtractor
-from sluice.extractors.gutenberg import GutenbergExtractor
-from sluice.extractors.rss import RssExtractor
-from sluice.extractors.wikimedia import WikimediaCommonsExtractor
-from sluice.models import Item
+from sluicebox import extractors
+from sluicebox.extractors.archive_org import ArchiveOrgExtractor
+from sluicebox.extractors.base import Context, Extractor
+from sluicebox.extractors.direct import DirectExtractor
+from sluicebox.extractors.gutenberg import GutenbergExtractor
+from sluicebox.extractors.rss import RssExtractor
+from sluicebox.extractors.wikimedia import WikimediaCommonsExtractor
+from sluicebox.models import Item
 
 FEED = """<?xml version="1.0"?>
 <rss version="2.0"><channel>

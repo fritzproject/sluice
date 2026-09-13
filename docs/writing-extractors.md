@@ -12,8 +12,8 @@ for everyone — so an extractor inherits every improvement made there for free.
 ## The four methods
 
 ```python
-from sluice.extractors.base import Context, Extractor
-from sluice.models import Item, Source, Target
+from sluicebox.extractors.base import Context, Extractor
+from sluicebox.models import Item, Source, Target
 
 
 class MyExtractor(Extractor):
@@ -92,11 +92,11 @@ An extractor lives in its own package and declares an entry point:
 
 ```toml
 # pyproject.toml of the extractor package
-[project.entry-points."sluice.extractors"]
+[project.entry-points."sluicebox.extractors"]
 mine = "my_package.extractor:MyExtractor"
 ```
 
-Once the package is installed, Sluice loads it at startup. Registered
+Once the package is installed, Sluicebox loads it at startup. Registered
 extractors take precedence over the built-in ones, so a default behaviour can
 be replaced without touching the core. An extractor that fails to load is
 skipped with an error in the log: it never prevents startup.

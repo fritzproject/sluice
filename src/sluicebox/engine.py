@@ -13,13 +13,13 @@ from typing import Any
 
 import requests
 
-from sluice import extractors
-from sluice.config import Config, Settings
-from sluice.downloader import download
-from sluice.extractors.base import Context
-from sluice.limiter import Limiter
-from sluice.naming import Layout
-from sluice.store import Store
+from sluicebox import extractors
+from sluicebox.config import Config, Settings
+from sluicebox.downloader import download
+from sluicebox.extractors.base import Context
+from sluicebox.limiter import Limiter
+from sluicebox.naming import Layout
+from sluicebox.store import Store
 
 logger = logging.getLogger(__name__)
 

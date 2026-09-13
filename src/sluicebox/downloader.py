@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Callable
 if TYPE_CHECKING:
     import requests
 
-    from sluice.models import Target
+    from sluicebox.models import Target
 
 logger = logging.getLogger(__name__)
 

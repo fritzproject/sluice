@@ -8,11 +8,11 @@ from pathlib import Path
 
 import pytest
 
-from sluice.downloader import download
-from sluice.engine import Engine
-from sluice.limiter import Limiter
-from sluice.models import Target
-from sluice.naming import Layout, sanitize
+from sluicebox.downloader import download
+from sluicebox.engine import Engine
+from sluicebox.limiter import Limiter
+from sluicebox.models import Target
+from sluicebox.naming import Layout, sanitize
 
 
 # ------------------------------------------------------------------- limiter
@@ -181,16 +181,16 @@ def test_cli_flags_do_not_shadow_the_environment(monkeypatch: pytest.MonkeyPatch
     """Omitted flags must leave the environment in charge.
 
     When the flags defaulted to "./downloads" and "./state" they were passed
-    unconditionally, silently overriding SLUICE_DOWNLOAD_ROOT and
-    SLUICE_STATE_DIR — which is how a container ends up writing its queue into
+    unconditionally, silently overriding SLUICEBOX_DOWNLOAD_ROOT and
+    SLUICEBOX_STATE_DIR — which is how a container ends up writing its queue into
     a working directory it has no permission on.
     """
     import argparse
 
-    from sluice.cli import _config
+    from sluicebox.cli import _config
 
-    monkeypatch.setenv("SLUICE_DOWNLOAD_ROOT", "/downloads")
-    monkeypatch.setenv("SLUICE_STATE_DIR", "/state")
+    monkeypatch.setenv("SLUICEBOX_DOWNLOAD_ROOT", "/downloads")
+    monkeypatch.setenv("SLUICEBOX_STATE_DIR", "/state")
 
     from_env = _config(argparse.Namespace(output=None, state=None))
     assert from_env.download_root == Path("/downloads")

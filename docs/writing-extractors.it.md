@@ -12,8 +12,8 @@ eredita gratis ogni miglioria fatta lì.
 ## I quattro metodi
 
 ```python
-from sluice.extractors.base import Context, Extractor
-from sluice.models import Item, Source, Target
+from sluicebox.extractors.base import Context, Extractor
+from sluicebox.models import Item, Source, Target
 
 
 class MioExtractor(Extractor):
@@ -93,11 +93,11 @@ Un estrattore vive in un pacchetto suo e si dichiara come entry point:
 
 ```toml
 # pyproject.toml del pacchetto dell'estrattore
-[project.entry-points."sluice.extractors"]
+[project.entry-points."sluicebox.extractors"]
 mio = "mio_pacchetto.extractor:MioExtractor"
 ```
 
-Installato il pacchetto, Sluice lo carica all'avvio. Gli estrattori registrati
+Installato il pacchetto, Sluicebox lo carica all'avvio. Gli estrattori registrati
 hanno precedenza su quelli inclusi, così si può sostituire un comportamento
 predefinito senza modificare il nucleo. Un estrattore che non si carica viene
 saltato con un errore nel registro: non impedisce mai l'avvio.

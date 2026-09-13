@@ -18,7 +18,7 @@ BOUNDS: dict[str, tuple[float, float]] = {
 
 
 def _env(name: str, default: str) -> str:
-    return os.environ.get(f"SLUICE_{name.upper()}", default)
+    return os.environ.get(f"SLUICEBOX_{name.upper()}", default)
 
 
 # Read through default_factory, not as a plain default: a plain default is
@@ -97,7 +97,7 @@ class Config:
         default_factory=lambda: [p.strip() for p in _env("proxies", "").split(",") if p.strip()])
     user_agent: str = field(
         default_factory=lambda: _env("user_agent",
-                                     "Sluice/0.2 (+https://github.com/fritzproject/sluice)"))
+                                     "Sluicebox/0.2 (+https://github.com/fritzproject/sluice)"))
     timeout: int = _env_int("timeout", "30")
 
     def __post_init__(self) -> None:

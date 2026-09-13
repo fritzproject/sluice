@@ -8,11 +8,11 @@ from pathlib import PurePosixPath
 from typing import TYPE_CHECKING
 from urllib.parse import unquote, urlparse
 
-from sluice.extractors.base import Extractor
-from sluice.models import Item, Source, Target
+from sluicebox.extractors.base import Extractor
+from sluicebox.models import Item, Source, Target
 
 if TYPE_CHECKING:
-    from sluice.extractors.base import Context
+    from sluicebox.extractors.base import Context
 
 NAMESPACES = {"atom": "http://www.w3.org/2005/Atom"}
 

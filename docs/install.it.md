@@ -1,4 +1,4 @@
-# Installare Sluice
+# Installare Sluicebox
 
 🇬🇧 [Read in English](install.md)
 
@@ -23,9 +23,9 @@ pip install -e ".[web]"
 Prova che funzioni:
 
 ```bash
-sluice extractors
-sluice inspect https://www.gutenberg.org/ebooks/2009
-sluice serve --port 8420
+sluicebox extractors
+sluicebox inspect https://www.gutenberg.org/ebooks/2009
+sluicebox serve --port 8420
 ```
 
 Di base i file finiscono in `./downloads` e la coda in `./state`, entrambi
@@ -53,9 +53,9 @@ L'interfaccia è su `http://<host>:8420`.
 
 ```yaml
 services:
-  sluice:
+  sluicebox:
     build: .                       # oppure image: ghcr.io/... una volta pubblicata
-    container_name: sluice
+    container_name: sluicebox
     restart: unless-stopped
     ports:
       - "8420:8420"                # host:container
@@ -63,8 +63,8 @@ services:
       TZ: Europe/Rome
       PUID: "1000"                 # vedi "Cartelle e permessi"
       PGID: "1000"
-      SLUICE_CONCURRENT_TRANSFERS: "4"
-      SLUICE_PARALLEL_SOURCES: "3"
+      SLUICEBOX_CONCURRENT_TRANSFERS: "4"
+      SLUICEBOX_PARALLEL_SOURCES: "3"
     volumes:
       - /srv/downloads:/downloads  # dove finiscono i file
       - ./state:/state             # coda, impostazioni, registro
@@ -84,7 +84,7 @@ Il `Dockerfile` accetta due argomenti di build, così il processo dentro al
 container gira come **il tuo** utente invece che come root:
 
 ```bash
-docker build --build-arg UID=$(id -u) --build-arg GID=$(id -g) -t sluice .
+docker build --build-arg UID=$(id -u) --build-arg GID=$(id -g) -t sluicebox .
 ```
 
 Con compose:
@@ -101,7 +101,7 @@ Con compose:
 
 ## 3. Dietro un reverse proxy
 
-Sluice parla HTTP in chiaro e **non ha alcuna autenticazione propria**:
+Sluicebox parla HTTP in chiaro e **non ha alcuna autenticazione propria**:
 chiunque raggiunga la porta 8420 può accodare download e cambiare le
 impostazioni. Non esporlo direttamente su internet — mettilo dietro un proxy
 che si occupi di TLS e autenticazione.
@@ -121,7 +121,7 @@ sluice.esempio.org {
 
 ```nginx
 location / {
-    auth_basic           "Sluice";
+    auth_basic           "Sluicebox";
     auth_basic_user_file /etc/nginx/.htpasswd;
     proxy_pass           http://127.0.0.1:8420;
     proxy_set_header     Host $host;
@@ -171,7 +171,7 @@ respinto.
 
 ### La trappola da conoscere
 
-Se Sluice ha girato anche una sola volta come root e ha creato lui la cartella
+Se Sluicebox ha girato anche una sola volta come root e ha creato lui la cartella
 di destinazione, quella cartella ora appartiene a root — e passare dopo a un
 utente normale **non basta**, perché creare un file dentro una cartella
 richiede il permesso di scrittura **sulla cartella**, non sul suo genitore. Il
@@ -187,9 +187,9 @@ sudo chown -R 1000:1000 /srv/downloads
 ### Verifica
 
 ```bash
-docker exec sluice id
-docker exec sluice touch /downloads/prova && echo OK
-docker exec sluice rm /downloads/prova
+docker exec sluicebox id
+docker exec sluicebox touch /downloads/prova && echo OK
+docker exec sluicebox rm /downloads/prova
 ls -ln /srv/downloads               # il proprietario deve coincidere con gli altri programmi
 ```
 
@@ -199,23 +199,23 @@ ls -ln /srv/downloads               # il proprietario deve coincidere con gli al
 
 | Variabile | Predefinito | Significato |
 |---|---|---|
-| `SLUICE_DOWNLOAD_ROOT` | `./downloads` | dove finiscono i file |
-| `SLUICE_STATE_DIR` | `./state` | coda, impostazioni, registro |
-| `SLUICE_CONCURRENT_TRANSFERS` | `4` | trasferimenti simultanei totali |
-| `SLUICE_PARALLEL_SOURCES` | `3` | quante sorgenti insieme |
-| `SLUICE_PACING_MIN_SECONDS` | `0` | pausa casuale minima fra elementi |
-| `SLUICE_PACING_MAX_SECONDS` | `0` | pausa casuale massima |
-| `SLUICE_MAX_RETRIES` | `4` | tentativi prima di dare un elemento per fallito |
-| `SLUICE_RECHECK_INTERVAL_SECONDS` | `21600` | ogni quanto ricontrollare le sorgenti sorvegliate |
-| `SLUICE_TIMEOUT` | `30` | timeout per richiesta, in secondi |
-| `SLUICE_PROXIES` | — | uscite separate da virgola, usate a rotazione |
-| `SLUICE_USER_AGENT` | `Sluice/0.2 …` | come Sluice si presenta |
+| `SLUICEBOX_DOWNLOAD_ROOT` | `./downloads` | dove finiscono i file |
+| `SLUICEBOX_STATE_DIR` | `./state` | coda, impostazioni, registro |
+| `SLUICEBOX_CONCURRENT_TRANSFERS` | `4` | trasferimenti simultanei totali |
+| `SLUICEBOX_PARALLEL_SOURCES` | `3` | quante sorgenti insieme |
+| `SLUICEBOX_PACING_MIN_SECONDS` | `0` | pausa casuale minima fra elementi |
+| `SLUICEBOX_PACING_MAX_SECONDS` | `0` | pausa casuale massima |
+| `SLUICEBOX_MAX_RETRIES` | `4` | tentativi prima di dare un elemento per fallito |
+| `SLUICEBOX_RECHECK_INTERVAL_SECONDS` | `21600` | ogni quanto ricontrollare le sorgenti sorvegliate |
+| `SLUICEBOX_TIMEOUT` | `30` | timeout per richiesta, in secondi |
+| `SLUICEBOX_PROXIES` | — | uscite separate da virgola, usate a rotazione |
+| `SLUICEBOX_USER_AGENT` | `Sluicebox/0.2 …` | come Sluicebox si presenta |
 
 I quattro valori di portata sono solo il **punto di partenza**: cambiandoli
 dall'interfaccia vengono salvati in `/state` e da lì in poi hanno la
 precedenza.
 
-### Su `SLUICE_PROXIES`
+### Su `SLUICEBOX_PROXIES`
 
 A ogni elemento viene assegnata un'uscita a rotazione, e sia la risoluzione del
 collegamento sia lo scaricamento dei byte passano da **quella stessa uscita**.
@@ -245,12 +245,12 @@ cui si erano fermati invece di ricominciare.
 ## Se qualcosa non va
 
 **`no extractor can handle this URL`** — nessun estrattore installato riconosce
-quell'indirizzo. Controlla `sluice extractors`; `direct` accetta solo
+quell'indirizzo. Controlla `sluicebox extractors`; `direct` accetta solo
 `http`/`https`.
 
 **Tutto fallisce con HTTP 429 o 503** — stai chiedendo troppo in fretta.
 Abbassa i *trasferimenti simultanei* e imposta una pausa
-(`SLUICE_PACING_MIN_SECONDS` 2, `_MAX_` 7). Le impostazioni prudenti sono quasi
+(`SLUICEBOX_PACING_MIN_SECONDS` 2, `_MAX_` 7). Le impostazioni prudenti sono quasi
 sempre più veloci in totale, perché ogni richiesta rifiutata costa un tentativo.
 
 **Un lavoro risulta `interrupted`** — alcuni elementi non sono mai arrivati in
