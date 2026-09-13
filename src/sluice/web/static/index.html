@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sluice</title>
+<style>
+  :root { --bg:#12141a; --card:#1a1c24; --line:#2a2c36; --text:#e8e8ea; --dim:#8e95a3; --accent:#4a7dff; }
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, -apple-system, sans-serif; max-width: 820px; margin: 0 auto;
+         padding: 16px; background: var(--bg); color: var(--text); }
+  h1 { font-size: 1.1rem; margin: 6px 0 14px; letter-spacing: .02em; }
+  h1 span { color: var(--dim); font-weight: 400; font-size: .8rem; margin-left: 8px; }
+  input[type=text], input[type=number] { padding: 9px; font-size: .95rem; background: #1e2029;
+         color: #fff; border: 1px solid #333; border-radius: 6px; }
+  input[type=text] { width: 100%; }
+  button { padding: 9px 16px; font-size: .95rem; cursor: pointer; background: var(--accent);
+           color: #fff; border: none; border-radius: 6px; }
+  button.ghost { background: #2a2c36; color: var(--text); border: 1px solid #3a3c46; }
+  button:disabled { opacity: .5; cursor: default; }
+
+  .bar-top { position: sticky; top: 0; z-index: 10; background: var(--card);
+             border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px;
+             display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+  .speed { font-size: 1.3rem; font-weight: 600; color: #6f6; }
+  .metric { font-size: .75rem; color: var(--dim); }
+  .metric b { color: var(--text); font-size: .95rem; display: block; }
+
+  .panel, .card { background: var(--card); border: 1px solid var(--line); border-radius: 8px;
+                  padding: 12px; margin-top: 12px; }
+  .head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .title { font-weight: 600; }
+  .sub { font-size: .75rem; color: var(--dim); margin-top: 2px; }
+  .badge { font-size: .7rem; padding: 3px 9px; border-radius: 10px; background: #333; color: #ccc; }
+  .badge.running { background: var(--accent); color: #fff; }
+  .badge.done { background: #2a6b2a; color: #cfc; }
+  .badge.failed { background: #6b2a2a; color: #fcc; }
+  .badge.partial, .badge.interrupted { background: #6b5a2a; color: #fe9; }
+
+  .progress { height: 5px; background: #22242e; border-radius: 3px; margin-top: 8px; overflow: hidden; }
+  .progress > div { height: 100%; background: var(--accent); width: 0; transition: width .4s; }
+
+  details { margin-top: 10px; }
+  summary { cursor: pointer; font-size: .82rem; color: var(--dim); }
+  .rows { margin-top: 6px; max-height: 260px; overflow-y: auto; font-size: .8rem; padding-right: 10px; }
+  .row { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center;
+         padding: 5px 2px; border-bottom: 1px solid #23252e; }
+  .row > span:last-child { text-align: right; color: var(--dim); font-variant-numeric: tabular-nums; }
+  .row .ok { color: #6f6; }
+  .row .err { color: #f77; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+          gap: 4px; max-height: 260px; overflow-y: auto; margin: 10px 0; }
+  .grid label { font-size: .78rem; display: flex; align-items: center; gap: 6px;
+                white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fields { display: flex; gap: 10px; flex-wrap: wrap; margin: 10px 0; }
+  .fields label { font-size: .75rem; color: var(--dim); display: flex; flex-direction: column; gap: 4px; }
+  #error { color: #f66; margin-top: 8px; font-size: .85rem; }
+</style>
+</head>
+<body>
+
+<div class="bar-top">
+  <div><div class="speed" id="speed">0,0 MB/s</div><div class="metric">portata totale</div></div>
+  <div class="metric">in corso <b id="active">0</b></div>
+  <div class="metric">in coda <b id="queued">0</b></div>
+  <div class="metric">falliti <b id="failed">0</b></div>
+  <div class="metric">uscite <b id="proxies">dirette</b></div>
+  <button class="ghost" id="retryAll" style="display:none;padding:6px 12px;font-size:.78rem"></button>
+  <div class="metric" style="margin-left:auto">simultanei
+    <input type="number" id="sConc" min="1" max="32" style="width:56px;margin-top:2px"></div>
+  <div class="metric">sorgenti
+    <input type="number" id="sSources" min="1" max="16" style="width:56px;margin-top:2px"></div>
+  <div class="metric" id="saved" style="color:#6f6"></div>
+</div>
+
+<h1>Sluice <span>gestore di download a moduli</span></h1>
+
+<input type="text" id="url" placeholder="Incolla un URL — file diretto, feed RSS, elemento di archive.org…">
+<div style="margin-top:8px"><button id="inspect">Analizza</button></div>
+<div id="error"></div>
+
+<div id="pending" class="panel" style="display:none">
+  <div class="title" id="pName"></div>
+  <div class="sub" id="pInfo"></div>
+  <div class="fields">
+    <label>Cartella<input type="text" id="fFolder" style="width:200px"></label>
+    <label>Nome file<input type="text" id="fFile" style="width:230px"></label>
+  </div>
+  <div class="sub">Segnaposto: <code>{source}</code> <code>{title}</code> <code>{index:02d}</code> <code>{ext}</code></div>
+  <div style="display:flex;gap:8px;margin-top:10px">
+    <button class="ghost" id="selAll">Tutti</button>
+    <button class="ghost" id="selNone">Nessuno</button>
+  </div>
+  <div class="grid" id="items"></div>
+  <label style="display:flex;align-items:center;gap:8px;font-size:.85rem">
+    <input type="checkbox" id="fWatch"> Ricontrolla e scarica i nuovi elementi
+  </label>
+  <div class="sub" id="watchHint" style="margin:2px 0 10px 24px"></div>
+  <button id="queue">Aggiungi alla coda</button>
+</div>
+
+<div class="panel" id="watchPanel" style="display:none">
+  <div class="head"><div class="title">Sorgenti sorvegliate</div>
+    <button class="ghost" id="checkNow">Controlla ora</button></div>
+  <div class="sub" id="watchInfo"></div>
+  <div class="rows" id="watchList" style="max-height:none"></div>
+</div>
+
+<div id="jobs"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const fmtSpeed = (b) => (b / 1048576).toFixed(1).replace(".", ",") + " MB/s";
+const fmtSize = (b) => b >= 1073741824 ? (b / 1073741824).toFixed(1) + " GB"
+                                       : Math.round(b / 1048576) + " MB";
+let pending = null, watchedByUrl = {}, jobsById = {};
+
+$("inspect").onclick = async () => {
+  $("error").textContent = "";
+  const url = $("url").value.trim();
+  if (!url) return;
+  $("inspect").disabled = true; $("inspect").textContent = "Analizzo…";
+  try {
+    const res = await fetch("/api/inspect", {method: "POST",
+      headers: {"Content-Type": "application/json"}, body: JSON.stringify({url})});
+    const data = await res.json();
+    if (data.error) { $("error").textContent = data.error; return; }
+    pending = {url, ...data};
+    $("pName").textContent = data.title;
+    $("pInfo").textContent = `${data.extractor} · ${data.kind} · ${data.items.length} elementi`;
+    $("fFolder").value = "{source}";
+    $("fFile").value = "{index:02d} - {title}{ext}";
+    $("fWatch").checked = !!data.ongoing;
+    $("watchHint").textContent = data.ongoing
+      ? "La sorgente può ancora crescere: conviene sorvegliarla."
+      : "Raccolta chiusa: sorvegliarla non servirebbe.";
+    $("items").innerHTML = data.items.map(i =>
+      `<label title="${i.title}"><input type="checkbox" class="it" value="${
+        encodeURIComponent(i.key)}" checked> ${i.index ?? ""} ${i.title}</label>`).join("");
+    $("pending").style.display = "block";
+  } catch (e) { $("error").textContent = e.message; }
+  finally { $("inspect").disabled = false; $("inspect").textContent = "Analizza"; }
+};
+
+$("selAll").onclick = () => document.querySelectorAll(".it").forEach(b => b.checked = true);
+$("selNone").onclick = () => document.querySelectorAll(".it").forEach(b => b.checked = false);
+
+$("queue").onclick = async () => {
+  const items = [...document.querySelectorAll(".it:checked")].map(b => decodeURIComponent(b.value));
+  if (!items.length) { $("error").textContent = "Seleziona almeno un elemento"; return; }
+  const res = await fetch("/api/jobs", {method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({url: pending.url, items, title: pending.title,
+      watch: $("fWatch").checked,
+      layout: {folder: $("fFolder").value, filename: $("fFile").value}})});
+  const data = await res.json();
+  if (data.error) { $("error").textContent = data.error; return; }
+  $("url").value = ""; $("pending").style.display = "none";
+  refresh(); refreshWatches();
+};
+
+function jobHtml(job) {
+  const items = Object.entries(job.items || {});
+  const done = items.filter(([, s]) => s.status === "done").length;
+  const failed = items.filter(([, s]) => s.status === "failed").length;
+  const active = items.filter(([, s]) => s.status === "transferring");
+  const total = items.length || (job.requested || []).length;
+  const pct = items.length ? Math.round(done / items.length * 100) : 0;
+  const speed = active.reduce((a, [, s]) => a + (s.speed || 0), 0);
+  const running = job.status === "running" || job.status === "queued" || job.status === "preparing";
+  const stalled = running ? 0 : items.filter(([, s]) => s.status !== "done").length;
+
+  const rows = items.map(([, s]) => {
+    let right = s.status;
+    if (s.status === "transferring" && s.total)
+      right = `${Math.round(s.bytes / s.total * 100)}% · ${fmtSpeed(s.speed || 0)} · ${fmtSize(s.total)}`;
+    else if (s.status === "failed") right = `<span class="err">${s.error || "errore"}</span>`;
+    else if (s.status === "done") right = `<span class="ok">✓ ${s.total ? fmtSize(s.total) : ""}</span>`;
+    else if (s.status === "queued" && s.bytes) right = `in coda · ${fmtSize(s.bytes)} già presi`;
+    return `<div class="row"><span>${s.index ? s.index + ". " : ""}${s.title}</span><span>${right}</span></div>`;
+  }).join("");
+
+  return `<div class="head">
+      <div><div class="title">${job.title || "(analisi in corso…)"}</div>
+        <div class="sub">${items.length ? `${done}/${total} completati` : `${total} elementi · in attesa`}${
+          failed ? ` · ${failed} falliti` : ""}${active.length ? ` · ${fmtSpeed(speed)}` : ""}</div></div>
+      <span class="badge ${job.status}">${job.status}</span></div>
+    <div class="progress"><div style="width:${pct}%"></div></div>
+    <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+      ${(failed || stalled) ? `<button class="ghost" onclick="retry('${job.id}')">Riprendi ${failed || stalled}</button>` : ""}
+      <button class="ghost" onclick="toggleWatch('${job.id}')" style="${
+        watchedByUrl[job.url] ? "border-color:#2a6b2a;color:#cfc" : ""}">${
+        watchedByUrl[job.url] ? "✓ Sorvegliata" : "Sorveglia"}</button></div>
+    ${items.length ? `<details><summary>Dettaglio</summary><div class="rows">${rows}</div></details>` : ""}`;
+}
+
+async function retry(id) { await fetch(`/api/jobs/${id}/retry`, {method: "POST"}); refresh(); }
+
+async function toggleWatch(id) {
+  const job = jobsById[id]; if (!job) return;
+  if (watchedByUrl[job.url]) { await fetch("/api/watches/" + watchedByUrl[job.url], {method: "DELETE"}); }
+  else {
+    await fetch("/api/watches", {method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({url: job.url, layout: job.layout})});
+  }
+  await refreshWatches(); refresh();
+}
+
+async function refresh() {
+  try {
+    const {jobs, summary} = await (await fetch("/api/jobs")).json();
+    $("speed").textContent = fmtSpeed(summary.speed);
+    $("active").textContent = summary.active;
+    $("queued").textContent = summary.queued;
+    $("failed").textContent = summary.failed;
+    $("proxies").textContent = summary.proxies || "dirette";
+    const btn = $("retryAll");
+    if (summary.recoverable > 0) {
+      btn.style.display = "";
+      if (!btn.disabled) btn.textContent = `Riprendi tutto (${summary.recoverable})`;
+    } else btn.style.display = "none";
+
+    jobsById = Object.fromEntries(jobs.map(j => [j.id, j]));
+    const box = $("jobs");
+    for (const job of jobs) {
+      let card = document.getElementById("j-" + job.id);
+      if (!card) {
+        card = document.createElement("div");
+        card.className = "card"; card.id = "j-" + job.id;
+        box.prepend(card);
+      }
+      // Il rinfresco ricostruisce la scheda: senza questo il dettaglio aperto
+      // si richiuderebbe da solo a ogni giro.
+      const old = card.querySelector("details");
+      const wasOpen = old ? old.open : false;
+      const scroll = old ? (old.querySelector(".rows") || {}).scrollTop : 0;
+      card.innerHTML = jobHtml(job);
+      const now = card.querySelector("details");
+      if (now && wasOpen) {
+        now.open = true;
+        const rows = now.querySelector(".rows");
+        if (rows && scroll) rows.scrollTop = scroll;
+      }
+    }
+  } catch (e) { /* il giro successivo riprova */ }
+}
+
+async function refreshWatches() {
+  const {watches, interval} = await (await fetch("/api/watches")).json();
+  $("watchPanel").style.display = "block";
+  watchedByUrl = Object.fromEntries(watches.map(w => [w.url, w.id]));
+  if (!watches.length) {
+    $("watchInfo").textContent = "Nessuna sorgente sorvegliata. Spunta \"Ricontrolla\" quando "
+      + "aggiungi una raccolta che può ancora crescere.";
+    $("watchList").innerHTML = ""; return;
+  }
+  $("watchInfo").textContent = `controllo automatico ogni ${Math.round(interval / 3600)} ore`;
+  $("watchList").innerHTML = watches.map(w => {
+    const last = w.last_check ? new Date(w.last_check * 1000).toLocaleString("it-IT",
+      {day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit"}) : "mai";
+    const closed = w.enabled === false ? ` · chiusa: ${w.closed || "disattivata"}` : "";
+    return `<div class="row" style="${w.enabled === false ? "opacity:.55" : ""}">
+      <span>${w.title || w.url}<br><span class="sub">fino a ${w.known} · controllata ${last}${closed}</span></span>
+      <span><button class="ghost" style="padding:4px 10px;font-size:.72rem"
+        onclick="unwatch('${w.id}')">Rimuovi</button></span></div>`;
+  }).join("");
+}
+
+async function unwatch(id) { await fetch("/api/watches/" + id, {method: "DELETE"}); refreshWatches(); }
+
+$("checkNow").onclick = async () => {
+  $("checkNow").disabled = true; $("checkNow").textContent = "Controllo…";
+  try {
+    const {found} = await (await fetch("/api/watches/check", {method: "POST"})).json();
+    $("watchInfo").textContent = found.length
+      ? "Novità: " + found.map(f => `${f.title} (${f.new})`).join(", ")
+      : "Nessun elemento nuovo";
+    refresh();
+  } finally { $("checkNow").disabled = false; $("checkNow").textContent = "Controlla ora"; refreshWatches(); }
+};
+
+$("retryAll").onclick = async () => {
+  const btn = $("retryAll"); btn.disabled = true; btn.textContent = "Riaccodo…";
+  const {items} = await (await fetch("/api/retry-all", {method: "POST"})).json();
+  btn.textContent = `${items} riaccodati`;
+  setTimeout(() => { btn.disabled = false; refresh(); }, 2000);
+};
+
+async function loadSettings() {
+  const {settings} = await (await fetch("/api/settings")).json();
+  $("sConc").value = settings.concurrent_transfers;
+  $("sSources").value = settings.parallel_sources;
+}
+
+async function saveSettings() {
+  const res = await fetch("/api/settings", {method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({concurrent_transfers: +$("sConc").value,
+                          parallel_sources: +$("sSources").value})});
+  const data = await res.json();
+  $("saved").style.color = data.error ? "#f66" : "#6f6";
+  $("saved").textContent = data.error || "salvato";
+  setTimeout(() => { $("saved").textContent = ""; }, 2000);
+  if (!data.error) loadSettings();
+}
+
+["sConc", "sSources"].forEach(id => { $(id).onchange = saveSettings; });
+setInterval(refresh, 1500);
+setInterval(refreshWatches, 10000);
+refresh(); refreshWatches(); loadSettings();
+</script>
+</body>
+</html>

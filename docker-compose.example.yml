@@ -1,0 +1,23 @@
+# Esempio minimo. Copiare in docker-compose.yml e adattare i percorsi.
+services:
+  sluice:
+    build: .
+    container_name: sluice
+    restart: unless-stopped
+    ports:
+      - "8420:8420"
+    environment:
+      TZ: Europe/Rome
+      # Portata iniziale: poi si regola dall'interfaccia, a caldo.
+      SLUICE_CONCURRENT_TRANSFERS: "4"
+      SLUICE_PARALLEL_SOURCES: "3"
+      # Pausa casuale fra un elemento e l'altro, in secondi. Utile con le
+      # sorgenti che mal sopportano raffiche di richieste ravvicinate.
+      SLUICE_PACING_MIN_SECONDS: "0"
+      SLUICE_PACING_MAX_SECONDS: "0"
+      # Uscite di rete usate a rotazione, una per elemento. Risoluzione e
+      # scaricamento di uno stesso elemento passano sempre dalla stessa.
+      # SLUICE_PROXIES: "http://proxy-a:8888,http://proxy-b:8888"
+    volumes:
+      - ./downloads:/downloads
+      - ./state:/state
