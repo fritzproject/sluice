@@ -1,4 +1,4 @@
-"""Permette `python -m sluice`."""
+"""Enables `python -m sluice`."""
 
 from __future__ import annotations
 

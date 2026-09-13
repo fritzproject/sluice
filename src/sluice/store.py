@@ -1,4 +1,4 @@
-"""Persistenza dello stato: la coda sopravvive a riavvii e aggiornamenti."""
+"""State persistence: the queue survives restarts and upgrades."""
 
 from __future__ import annotations
 
@@ -12,11 +12,11 @@ logger = logging.getLogger(__name__)
 
 
 class Store:
-    """Istantanea dello stato su file JSON, scritta in modo atomico.
+    """A JSON snapshot of the state, written atomically.
 
-    Si scrive su un file temporaneo e lo si sposta sopra quello buono: se il
-    processo muore a meta' scrittura, lo stato precedente resta integro invece
-    di diventare un file troncato e illeggibile.
+    Writes go to a temporary file which is then moved over the real one: if
+    the process dies mid-write, the previous state stays intact instead of
+    becoming a truncated, unreadable file.
     """
 
     def __init__(self, path: Path) -> None:
@@ -30,8 +30,8 @@ class Store:
         try:
             return json.loads(self.path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
-            # Stato illeggibile: meglio ripartire puliti che non partire.
-            logger.exception("Stato non leggibile in %s, lo ignoro", self.path)
+            # Unreadable state: better to start clean than to refuse to start.
+            logger.exception("State at %s is unreadable, ignoring it", self.path)
             return {}
 
     def save(self, data: dict[str, Any]) -> None:
@@ -41,4 +41,4 @@ class Store:
                 temporary.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
                 temporary.replace(self.path)
             except OSError:
-                logger.exception("Impossibile salvare lo stato in %s", self.path)
+                logger.exception("Could not save state to %s", self.path)

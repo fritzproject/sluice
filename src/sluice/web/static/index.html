@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="it">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -25,6 +25,8 @@
   .speed { font-size: 1.3rem; font-weight: 600; color: #6f6; }
   .metric { font-size: .75rem; color: var(--dim); }
   .metric b { color: var(--text); font-size: .95rem; display: block; }
+  #lang { background: none; border: none; color: var(--dim); cursor: pointer;
+          font-size: .75rem; padding: 2px 6px; }
 
   .panel, .card { background: var(--card); border: 1px solid var(--line); border-radius: 8px;
                   padding: 12px; margin-top: 12px; }
@@ -61,48 +63,50 @@
 <body>
 
 <div class="bar-top">
-  <div><div class="speed" id="speed">0,0 MB/s</div><div class="metric">portata totale</div></div>
-  <div class="metric">in corso <b id="active">0</b></div>
-  <div class="metric">in coda <b id="queued">0</b></div>
-  <div class="metric">falliti <b id="failed">0</b></div>
-  <div class="metric">uscite <b id="proxies">dirette</b></div>
+  <div><div class="speed" id="speed">0.0 MB/s</div><div class="metric" data-t="throughput"></div></div>
+  <div class="metric"><span data-t="active"></span> <b id="active">0</b></div>
+  <div class="metric"><span data-t="queued"></span> <b id="queued">0</b></div>
+  <div class="metric"><span data-t="failed"></span> <b id="failed">0</b></div>
+  <div class="metric"><span data-t="exits"></span> <b id="proxies">—</b></div>
   <button class="ghost" id="retryAll" style="display:none;padding:6px 12px;font-size:.78rem"></button>
-  <div class="metric" style="margin-left:auto">simultanei
+  <div class="metric" style="margin-left:auto"><span data-t="transfers"></span>
     <input type="number" id="sConc" min="1" max="32" style="width:56px;margin-top:2px"></div>
-  <div class="metric">sorgenti
+  <div class="metric"><span data-t="sources"></span>
     <input type="number" id="sSources" min="1" max="16" style="width:56px;margin-top:2px"></div>
   <div class="metric" id="saved" style="color:#6f6"></div>
+  <button id="lang" title="Language">IT / EN</button>
 </div>
 
-<h1>Sluice <span>gestore di download a moduli</span></h1>
+<h1>Sluice <span data-t="tagline"></span></h1>
 
-<input type="text" id="url" placeholder="Incolla un URL — file diretto, feed RSS, elemento di archive.org…">
-<div style="margin-top:8px"><button id="inspect">Analizza</button></div>
+<input type="text" id="url">
+<div style="margin-top:8px"><button id="inspect" data-t="inspect"></button></div>
 <div id="error"></div>
 
 <div id="pending" class="panel" style="display:none">
   <div class="title" id="pName"></div>
   <div class="sub" id="pInfo"></div>
   <div class="fields">
-    <label>Cartella<input type="text" id="fFolder" style="width:200px"></label>
-    <label>Nome file<input type="text" id="fFile" style="width:230px"></label>
+    <label><span data-t="folder"></span><input type="text" id="fFolder" style="width:200px"></label>
+    <label><span data-t="filename"></span><input type="text" id="fFile" style="width:230px"></label>
   </div>
-  <div class="sub">Segnaposto: <code>{source}</code> <code>{title}</code> <code>{index:02d}</code> <code>{ext}</code></div>
+  <div class="sub"><span data-t="placeholders"></span>
+    <code>{source}</code> <code>{title}</code> <code>{index:02d}</code> <code>{ext}</code></div>
   <div style="display:flex;gap:8px;margin-top:10px">
-    <button class="ghost" id="selAll">Tutti</button>
-    <button class="ghost" id="selNone">Nessuno</button>
+    <button class="ghost" id="selAll" data-t="all"></button>
+    <button class="ghost" id="selNone" data-t="none"></button>
   </div>
   <div class="grid" id="items"></div>
   <label style="display:flex;align-items:center;gap:8px;font-size:.85rem">
-    <input type="checkbox" id="fWatch"> Ricontrolla e scarica i nuovi elementi
+    <input type="checkbox" id="fWatch"> <span data-t="watchLabel"></span>
   </label>
   <div class="sub" id="watchHint" style="margin:2px 0 10px 24px"></div>
-  <button id="queue">Aggiungi alla coda</button>
+  <button id="queue" data-t="addToQueue"></button>
 </div>
 
 <div class="panel" id="watchPanel" style="display:none">
-  <div class="head"><div class="title">Sorgenti sorvegliate</div>
-    <button class="ghost" id="checkNow">Controlla ora</button></div>
+  <div class="head"><div class="title" data-t="watchedSources"></div>
+    <button class="ghost" id="checkNow" data-t="checkNow"></button></div>
   <div class="sub" id="watchInfo"></div>
   <div class="rows" id="watchList" style="max-height:none"></div>
 </div>
@@ -110,17 +114,91 @@
 <div id="jobs"></div>
 
 <script>
+const STRINGS = {
+  en: {
+    tagline: "pluggable download manager",
+    throughput: "total throughput", active: "active", queued: "queued",
+    failed: "failed", exits: "exits", transfers: "transfers", sources: "sources",
+    urlPlaceholder: "Paste a URL — direct file, RSS feed, archive.org item…",
+    inspect: "Inspect", inspecting: "Inspecting…",
+    folder: "Folder", filename: "File name", placeholders: "Placeholders:",
+    all: "All", none: "None",
+    watchLabel: "Re-check and fetch new items",
+    addToQueue: "Add to queue",
+    watchedSources: "Watched sources", checkNow: "Check now", checking: "Checking…",
+    noWatches: "No sources watched. Tick \"Re-check\" when adding a collection that can still grow.",
+    watchEvery: (h) => `checked automatically every ${h} hours`,
+    ongoingYes: "This source can still grow: worth watching.",
+    ongoingNo: "Closed collection: watching it would achieve nothing.",
+    itemsCount: (n) => `${n} items`, completed: (a, b) => `${a}/${b} completed`,
+    waiting: (n) => `${n} items · waiting`, failedCount: (n) => `${n} failed`,
+    preparing: "(inspecting…)", detail: "Detail", resume: (n) => `Resume ${n}`,
+    watch: "Watch", watched: "✓ Watched", remove: "Remove",
+    retryAll: (n) => `Retry everything (${n})`, requeuing: "Re-queuing…",
+    requeued: (n) => `${n} re-queued`, saved: "saved", direct: "direct",
+    selectOne: "Select at least one item", upTo: (n) => `up to ${n}`,
+    checkedAt: "checked", never: "never", closed: "closed",
+    queuedWith: (s) => `queued · ${s} already fetched`, news: "New:", noNews: "Nothing new",
+  },
+  it: {
+    tagline: "gestore di download a moduli",
+    throughput: "portata totale", active: "in corso", queued: "in coda",
+    failed: "falliti", exits: "uscite", transfers: "simultanei", sources: "sorgenti",
+    urlPlaceholder: "Incolla un URL — file diretto, feed RSS, elemento di archive.org…",
+    inspect: "Analizza", inspecting: "Analizzo…",
+    folder: "Cartella", filename: "Nome file", placeholders: "Segnaposto:",
+    all: "Tutti", none: "Nessuno",
+    watchLabel: "Ricontrolla e scarica i nuovi elementi",
+    addToQueue: "Aggiungi alla coda",
+    watchedSources: "Sorgenti sorvegliate", checkNow: "Controlla ora", checking: "Controllo…",
+    noWatches: "Nessuna sorgente sorvegliata. Spunta \"Ricontrolla\" quando aggiungi una raccolta che può ancora crescere.",
+    watchEvery: (h) => `controllo automatico ogni ${h} ore`,
+    ongoingYes: "La sorgente può ancora crescere: conviene sorvegliarla.",
+    ongoingNo: "Raccolta chiusa: sorvegliarla non servirebbe.",
+    itemsCount: (n) => `${n} elementi`, completed: (a, b) => `${a}/${b} completati`,
+    waiting: (n) => `${n} elementi · in attesa`, failedCount: (n) => `${n} falliti`,
+    preparing: "(analisi in corso…)", detail: "Dettaglio", resume: (n) => `Riprendi ${n}`,
+    watch: "Sorveglia", watched: "✓ Sorvegliata", remove: "Rimuovi",
+    retryAll: (n) => `Riprendi tutto (${n})`, requeuing: "Riaccodo…",
+    requeued: (n) => `${n} riaccodati`, saved: "salvato", direct: "dirette",
+    selectOne: "Seleziona almeno un elemento", upTo: (n) => `fino a ${n}`,
+    checkedAt: "controllata", never: "mai", closed: "chiusa",
+    queuedWith: (s) => `in coda · ${s} già presi`, news: "Novità:", noNews: "Nessun elemento nuovo",
+  },
+};
+
+// Browser language first, overridable by the toggle and remembered locally.
+let lang = localStorage.getItem("sluice.lang")
+        || (navigator.language || "en").slice(0, 2).toLowerCase();
+if (!STRINGS[lang]) lang = "en";
+const t = (key) => STRINGS[lang][key];
+
 const $ = (id) => document.getElementById(id);
-const fmtSpeed = (b) => (b / 1048576).toFixed(1).replace(".", ",") + " MB/s";
+const fmtSpeed = (b) => (b / 1048576).toFixed(1) + " MB/s";
 const fmtSize = (b) => b >= 1073741824 ? (b / 1073741824).toFixed(1) + " GB"
                                        : Math.round(b / 1048576) + " MB";
 let pending = null, watchedByUrl = {}, jobsById = {};
+
+function applyLanguage() {
+  document.documentElement.lang = lang;
+  document.querySelectorAll("[data-t]").forEach(el => {
+    el.textContent = t(el.dataset.t);
+  });
+  $("url").placeholder = t("urlPlaceholder");
+  refresh(); refreshWatches();
+}
+
+$("lang").onclick = () => {
+  lang = lang === "it" ? "en" : "it";
+  localStorage.setItem("sluice.lang", lang);
+  applyLanguage();
+};
 
 $("inspect").onclick = async () => {
   $("error").textContent = "";
   const url = $("url").value.trim();
   if (!url) return;
-  $("inspect").disabled = true; $("inspect").textContent = "Analizzo…";
+  $("inspect").disabled = true; $("inspect").textContent = t("inspecting");
   try {
     const res = await fetch("/api/inspect", {method: "POST",
       headers: {"Content-Type": "application/json"}, body: JSON.stringify({url})});
@@ -128,19 +206,17 @@ $("inspect").onclick = async () => {
     if (data.error) { $("error").textContent = data.error; return; }
     pending = {url, ...data};
     $("pName").textContent = data.title;
-    $("pInfo").textContent = `${data.extractor} · ${data.kind} · ${data.items.length} elementi`;
+    $("pInfo").textContent = `${data.extractor} · ${data.kind} · ${t("itemsCount")(data.items.length)}`;
     $("fFolder").value = "{source}";
     $("fFile").value = "{index:02d} - {title}{ext}";
     $("fWatch").checked = !!data.ongoing;
-    $("watchHint").textContent = data.ongoing
-      ? "La sorgente può ancora crescere: conviene sorvegliarla."
-      : "Raccolta chiusa: sorvegliarla non servirebbe.";
+    $("watchHint").textContent = data.ongoing ? t("ongoingYes") : t("ongoingNo");
     $("items").innerHTML = data.items.map(i =>
       `<label title="${i.title}"><input type="checkbox" class="it" value="${
         encodeURIComponent(i.key)}" checked> ${i.index ?? ""} ${i.title}</label>`).join("");
     $("pending").style.display = "block";
   } catch (e) { $("error").textContent = e.message; }
-  finally { $("inspect").disabled = false; $("inspect").textContent = "Analizza"; }
+  finally { $("inspect").disabled = false; $("inspect").textContent = t("inspect"); }
 };
 
 $("selAll").onclick = () => document.querySelectorAll(".it").forEach(b => b.checked = true);
@@ -148,7 +224,7 @@ $("selNone").onclick = () => document.querySelectorAll(".it").forEach(b => b.che
 
 $("queue").onclick = async () => {
   const items = [...document.querySelectorAll(".it:checked")].map(b => decodeURIComponent(b.value));
-  if (!items.length) { $("error").textContent = "Seleziona almeno un elemento"; return; }
+  if (!items.length) { $("error").textContent = t("selectOne"); return; }
   const res = await fetch("/api/jobs", {method: "POST",
     headers: {"Content-Type": "application/json"},
     body: JSON.stringify({url: pending.url, items, title: pending.title,
@@ -168,42 +244,42 @@ function jobHtml(job) {
   const total = items.length || (job.requested || []).length;
   const pct = items.length ? Math.round(done / items.length * 100) : 0;
   const speed = active.reduce((a, [, s]) => a + (s.speed || 0), 0);
-  const running = job.status === "running" || job.status === "queued" || job.status === "preparing";
+  const running = ["running", "queued", "preparing"].includes(job.status);
   const stalled = running ? 0 : items.filter(([, s]) => s.status !== "done").length;
 
   const rows = items.map(([, s]) => {
     let right = s.status;
     if (s.status === "transferring" && s.total)
       right = `${Math.round(s.bytes / s.total * 100)}% · ${fmtSpeed(s.speed || 0)} · ${fmtSize(s.total)}`;
-    else if (s.status === "failed") right = `<span class="err">${s.error || "errore"}</span>`;
+    else if (s.status === "failed") right = `<span class="err">${s.error || "error"}</span>`;
     else if (s.status === "done") right = `<span class="ok">✓ ${s.total ? fmtSize(s.total) : ""}</span>`;
-    else if (s.status === "queued" && s.bytes) right = `in coda · ${fmtSize(s.bytes)} già presi`;
+    else if (s.status === "queued" && s.bytes) right = t("queuedWith")(fmtSize(s.bytes));
     return `<div class="row"><span>${s.index ? s.index + ". " : ""}${s.title}</span><span>${right}</span></div>`;
   }).join("");
 
   return `<div class="head">
-      <div><div class="title">${job.title || "(analisi in corso…)"}</div>
-        <div class="sub">${items.length ? `${done}/${total} completati` : `${total} elementi · in attesa`}${
-          failed ? ` · ${failed} falliti` : ""}${active.length ? ` · ${fmtSpeed(speed)}` : ""}</div></div>
+      <div><div class="title">${job.title || t("preparing")}</div>
+        <div class="sub">${items.length ? t("completed")(done, total) : t("waiting")(total)}${
+          failed ? ` · ${t("failedCount")(failed)}` : ""}${
+          active.length ? ` · ${fmtSpeed(speed)}` : ""}</div></div>
       <span class="badge ${job.status}">${job.status}</span></div>
     <div class="progress"><div style="width:${pct}%"></div></div>
     <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
-      ${(failed || stalled) ? `<button class="ghost" onclick="retry('${job.id}')">Riprendi ${failed || stalled}</button>` : ""}
+      ${(failed || stalled) ? `<button class="ghost" onclick="retry('${job.id}')">${
+        t("resume")(failed || stalled)}</button>` : ""}
       <button class="ghost" onclick="toggleWatch('${job.id}')" style="${
         watchedByUrl[job.url] ? "border-color:#2a6b2a;color:#cfc" : ""}">${
-        watchedByUrl[job.url] ? "✓ Sorvegliata" : "Sorveglia"}</button></div>
-    ${items.length ? `<details><summary>Dettaglio</summary><div class="rows">${rows}</div></details>` : ""}`;
+        watchedByUrl[job.url] ? t("watched") : t("watch")}</button></div>
+    ${items.length ? `<details><summary>${t("detail")}</summary><div class="rows">${rows}</div></details>` : ""}`;
 }
 
 async function retry(id) { await fetch(`/api/jobs/${id}/retry`, {method: "POST"}); refresh(); }
 
 async function toggleWatch(id) {
   const job = jobsById[id]; if (!job) return;
-  if (watchedByUrl[job.url]) { await fetch("/api/watches/" + watchedByUrl[job.url], {method: "DELETE"}); }
-  else {
-    await fetch("/api/watches", {method: "POST", headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({url: job.url, layout: job.layout})});
-  }
+  if (watchedByUrl[job.url]) await fetch("/api/watches/" + watchedByUrl[job.url], {method: "DELETE"});
+  else await fetch("/api/watches", {method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({url: job.url, layout: job.layout})});
   await refreshWatches(); refresh();
 }
 
@@ -214,11 +290,11 @@ async function refresh() {
     $("active").textContent = summary.active;
     $("queued").textContent = summary.queued;
     $("failed").textContent = summary.failed;
-    $("proxies").textContent = summary.proxies || "dirette";
+    $("proxies").textContent = summary.proxies || t("direct");
     const btn = $("retryAll");
     if (summary.recoverable > 0) {
       btn.style.display = "";
-      if (!btn.disabled) btn.textContent = `Riprendi tutto (${summary.recoverable})`;
+      if (!btn.disabled) btn.textContent = t("retryAll")(summary.recoverable);
     } else btn.style.display = "none";
 
     jobsById = Object.fromEntries(jobs.map(j => [j.id, j]));
@@ -230,8 +306,8 @@ async function refresh() {
         card.className = "card"; card.id = "j-" + job.id;
         box.prepend(card);
       }
-      // Il rinfresco ricostruisce la scheda: senza questo il dettaglio aperto
-      // si richiuderebbe da solo a ogni giro.
+      // Refreshing rebuilds the card: without this the open detail panel
+      // would close itself on every pass.
       const old = card.querySelector("details");
       const wasOpen = old ? old.open : false;
       const scroll = old ? (old.querySelector(".rows") || {}).scrollTop : 0;
@@ -243,7 +319,7 @@ async function refresh() {
         if (rows && scroll) rows.scrollTop = scroll;
       }
     }
-  } catch (e) { /* il giro successivo riprova */ }
+  } catch (e) { /* the next pass retries */ }
 }
 
 async function refreshWatches() {
@@ -251,39 +327,41 @@ async function refreshWatches() {
   $("watchPanel").style.display = "block";
   watchedByUrl = Object.fromEntries(watches.map(w => [w.url, w.id]));
   if (!watches.length) {
-    $("watchInfo").textContent = "Nessuna sorgente sorvegliata. Spunta \"Ricontrolla\" quando "
-      + "aggiungi una raccolta che può ancora crescere.";
+    $("watchInfo").textContent = t("noWatches");
     $("watchList").innerHTML = ""; return;
   }
-  $("watchInfo").textContent = `controllo automatico ogni ${Math.round(interval / 3600)} ore`;
+  $("watchInfo").textContent = t("watchEvery")(Math.round(interval / 3600));
   $("watchList").innerHTML = watches.map(w => {
-    const last = w.last_check ? new Date(w.last_check * 1000).toLocaleString("it-IT",
-      {day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit"}) : "mai";
-    const closed = w.enabled === false ? ` · chiusa: ${w.closed || "disattivata"}` : "";
+    const last = w.last_check
+      ? new Date(w.last_check * 1000).toLocaleString(lang, {day: "2-digit", month: "2-digit",
+          hour: "2-digit", minute: "2-digit"})
+      : t("never");
+    const closed = w.enabled === false ? ` · ${t("closed")}: ${w.closed || ""}` : "";
     return `<div class="row" style="${w.enabled === false ? "opacity:.55" : ""}">
-      <span>${w.title || w.url}<br><span class="sub">fino a ${w.known} · controllata ${last}${closed}</span></span>
+      <span>${w.title || w.url}<br><span class="sub">${t("upTo")(w.known)} · ${
+        t("checkedAt")} ${last}${closed}</span></span>
       <span><button class="ghost" style="padding:4px 10px;font-size:.72rem"
-        onclick="unwatch('${w.id}')">Rimuovi</button></span></div>`;
+        onclick="unwatch('${w.id}')">${t("remove")}</button></span></div>`;
   }).join("");
 }
 
 async function unwatch(id) { await fetch("/api/watches/" + id, {method: "DELETE"}); refreshWatches(); }
 
 $("checkNow").onclick = async () => {
-  $("checkNow").disabled = true; $("checkNow").textContent = "Controllo…";
+  $("checkNow").disabled = true; $("checkNow").textContent = t("checking");
   try {
     const {found} = await (await fetch("/api/watches/check", {method: "POST"})).json();
     $("watchInfo").textContent = found.length
-      ? "Novità: " + found.map(f => `${f.title} (${f.new})`).join(", ")
-      : "Nessun elemento nuovo";
+      ? `${t("news")} ` + found.map(f => `${f.title} (${f.new})`).join(", ")
+      : t("noNews");
     refresh();
-  } finally { $("checkNow").disabled = false; $("checkNow").textContent = "Controlla ora"; refreshWatches(); }
+  } finally { $("checkNow").disabled = false; $("checkNow").textContent = t("checkNow"); refreshWatches(); }
 };
 
 $("retryAll").onclick = async () => {
-  const btn = $("retryAll"); btn.disabled = true; btn.textContent = "Riaccodo…";
+  const btn = $("retryAll"); btn.disabled = true; btn.textContent = t("requeuing");
   const {items} = await (await fetch("/api/retry-all", {method: "POST"})).json();
-  btn.textContent = `${items} riaccodati`;
+  btn.textContent = t("requeued")(items);
   setTimeout(() => { btn.disabled = false; refresh(); }, 2000);
 };
 
@@ -300,7 +378,7 @@ async function saveSettings() {
                           parallel_sources: +$("sSources").value})});
   const data = await res.json();
   $("saved").style.color = data.error ? "#f66" : "#6f6";
-  $("saved").textContent = data.error || "salvato";
+  $("saved").textContent = data.error || t("saved");
   setTimeout(() => { $("saved").textContent = ""; }, 2000);
   if (!data.error) loadSettings();
 }
@@ -308,7 +386,8 @@ async function saveSettings() {
 ["sConc", "sSources"].forEach(id => { $(id).onchange = saveSettings; });
 setInterval(refresh, 1500);
 setInterval(refreshWatches, 10000);
-refresh(); refreshWatches(); loadSettings();
+applyLanguage();
+loadSettings();
 </script>
 </body>
 </html>

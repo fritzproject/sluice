@@ -1,9 +1,8 @@
-"""Registro degli estrattori.
+"""The extractor registry.
 
-Gli estrattori interni sono registrati qui. Quelli di terze parti si
-aggiungono senza toccare questo file: basta che il pacchetto dichiari un
-entry point nel gruppo ``sluice.extractors`` (vedi docs/writing-extractors.md),
-e viene caricato all'avvio.
+Built-in extractors are listed here. Third-party ones need no change to this
+file: a package only has to declare an entry point in the ``sluice.extractors``
+group (see docs/writing-extractors.md) and it is loaded at startup.
 """
 
 from __future__ import annotations
@@ -14,35 +13,43 @@ from importlib.metadata import entry_points
 from sluice.extractors.archive_org import ArchiveOrgExtractor
 from sluice.extractors.base import Context, Extractor
 from sluice.extractors.direct import DirectExtractor
+from sluice.extractors.gutenberg import GutenbergExtractor
 from sluice.extractors.rss import RssExtractor
+from sluice.extractors.wikimedia import WikimediaCommonsExtractor
 
 logger = logging.getLogger(__name__)
 
 ENTRY_POINT_GROUP = "sluice.extractors"
 
-#: L'ordine conta: vince il primo che riconosce l'URL, e `direct` accetta
-#: qualunque http(s), quindi resta per forza in fondo come ripiego.
-_BUILTIN: list[type[Extractor]] = [ArchiveOrgExtractor, RssExtractor, DirectExtractor]
+#: Order matters: the first extractor that recognises a URL wins, and `direct`
+#: accepts any http(s) URL, so it has to stay last as the fallback.
+_BUILTIN: list[type[Extractor]] = [
+    ArchiveOrgExtractor,
+    WikimediaCommonsExtractor,
+    GutenbergExtractor,
+    RssExtractor,
+    DirectExtractor,
+]
 _registry: list[type[Extractor]] = []
 
 
 def load_plugins() -> None:
-    """Carica gli estrattori installati come pacchetti separati."""
+    """Load extractors installed as separate packages."""
     for entry in entry_points(group=ENTRY_POINT_GROUP):
         try:
             plugin = entry.load()
-        except Exception:  # noqa: BLE001 - un plugin rotto non deve impedire l'avvio
-            logger.exception("Estrattore '%s' non caricato", entry.name)
+        except Exception:  # noqa: BLE001 - a broken plugin must not stop startup
+            logger.exception("Could not load extractor '%s'", entry.name)
             continue
         if not (isinstance(plugin, type) and issubclass(plugin, Extractor)):
-            logger.warning("Estrattore '%s' ignorato: non deriva da Extractor", entry.name)
+            logger.warning("Ignoring '%s': not an Extractor subclass", entry.name)
             continue
         register(plugin)
-        logger.info("Estrattore caricato: %s", plugin.name)
+        logger.info("Extractor loaded: %s", plugin.name)
 
 
 def register(extractor: type[Extractor]) -> None:
-    """Aggiunge un estrattore, con priorita' sui predefiniti."""
+    """Add an extractor, taking precedence over the built-in ones."""
     if extractor not in _registry:
         _registry.insert(0, extractor)
 
@@ -52,13 +59,13 @@ def available() -> list[type[Extractor]]:
 
 
 def find(url: str) -> type[Extractor] | None:
-    """Primo estrattore che dichiara di saper gestire l'URL."""
+    """First extractor that claims it can handle the URL."""
     for extractor in available():
         try:
             if extractor.matches(url):
                 return extractor
-        except Exception:  # noqa: BLE001 - matches() non deve poter rompere il resto
-            logger.exception("matches() fallita in %s", extractor.name)
+        except Exception:  # noqa: BLE001 - matches() must not break the rest
+            logger.exception("matches() failed in %s", extractor.name)
     return None
 
 

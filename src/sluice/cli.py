@@ -1,4 +1,4 @@
-"""Interfaccia da riga di comando."""
+"""Command line interface."""
 
 from __future__ import annotations
 
@@ -13,9 +13,24 @@ from sluice.config import Config, Settings
 from sluice.engine import Engine
 
 
+def _config(args: argparse.Namespace) -> Config:
+    """Command line beats the environment, which beats the defaults.
+
+    The flags must default to None for this to work: passing their value
+    unconditionally would silently override SLUICE_DOWNLOAD_ROOT and
+    SLUICE_STATE_DIR, which is exactly how a container ends up trying to write
+    its queue into a read-only working directory.
+    """
+    overrides: dict[str, Path] = {}
+    if args.output:
+        overrides["download_root"] = Path(args.output)
+    if args.state:
+        overrides["state_dir"] = Path(args.state)
+    return Config(**overrides)
+
+
 def _engine(args: argparse.Namespace) -> Engine:
-    config = Config(download_root=Path(args.output), state_dir=Path(args.state))
-    engine = Engine(config=config, settings=Settings())
+    engine = Engine(config=_config(args), settings=Settings())
     engine.start()
     return engine
 
@@ -23,10 +38,10 @@ def _engine(args: argparse.Namespace) -> Engine:
 def _cmd_get(args: argparse.Namespace) -> int:
     engine = _engine(args)
     job_id = engine.submit(args.url, watch=args.watch)
-    print(f"in coda: {job_id}")
+    print(f"queued: {job_id}")
 
-    # Senza interfaccia web il processo deve restare vivo finche' c'e' lavoro,
-    # altrimenti uscirebbe lasciando i thread a meta'.
+    # With no web interface the process must stay alive while there is work,
+    # otherwise it would exit and leave its threads half-way through.
     while True:
         job = engine.jobs[job_id]
         items = job.get("items", {})
@@ -42,20 +57,19 @@ def _cmd_get(args: argparse.Namespace) -> int:
 def _cmd_inspect(args: argparse.Namespace) -> int:
     info = _engine(args).inspect(args.url)
     print(f"{info['title']}  [{info['extractor']}, {info['kind']}]")
-    print(f"{len(info['items'])} elementi"
-          + (", raccolta ancora aperta" if info["ongoing"] else ""))
+    print(f"{len(info['items'])} items" + (", still open" if info["ongoing"] else ""))
     for item in info["items"][:20]:
         print(f"  {item['index'] or '-':>4}  {item['title']}")
     if len(info["items"]) > 20:
-        print(f"  … altri {len(info['items']) - 20}")
+        print(f"  … {len(info['items']) - 20} more")
     return 0
 
 
 def _cmd_serve(args: argparse.Namespace) -> int:
     from sluice.web.app import create_app
-    config = Config(download_root=Path(args.output), state_dir=Path(args.state))
+    config = _config(args)
     app = create_app(config=config)
-    print(f"Sluice su http://{args.host}:{args.port}  ->  {config.download_root}")
+    print(f"Sluice on http://{args.host}:{args.port}  ->  {config.download_root}")
     app.run(host=args.host, port=args.port, threaded=True)
     return 0
 
@@ -68,29 +82,32 @@ def _cmd_extractors(_: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="sluice", description=__doc__)
+    parser = argparse.ArgumentParser(
+        prog="sluice", description="Pluggable download manager")
     parser.add_argument("--version", action="version", version=f"sluice {__version__}")
-    parser.add_argument("-o", "--output", default="./downloads", help="cartella di destinazione")
-    parser.add_argument("--state", default="./state", help="dove salvare coda e registro")
+    parser.add_argument("-o", "--output", default=None,
+                        help="destination folder (default: SLUICE_DOWNLOAD_ROOT or ./downloads)")
+    parser.add_argument("--state", default=None,
+                        help="where queue and log are kept (default: SLUICE_STATE_DIR or ./state)")
     parser.add_argument("-v", "--verbose", action="store_true")
 
     sub = parser.add_subparsers(dest="command", required=True)
 
-    get = sub.add_parser("get", help="scarica tutto quello che c'e' a un URL")
+    get = sub.add_parser("get", help="download everything behind a URL")
     get.add_argument("url")
-    get.add_argument("--watch", action="store_true", help="ricontrolla e prendi i nuovi elementi")
+    get.add_argument("--watch", action="store_true", help="re-check and fetch new items")
     get.set_defaults(func=_cmd_get)
 
-    inspect = sub.add_parser("inspect", help="mostra cosa c'e' a un URL senza scaricare")
+    inspect = sub.add_parser("inspect", help="show what is behind a URL, without downloading")
     inspect.add_argument("url")
     inspect.set_defaults(func=_cmd_inspect)
 
-    serve = sub.add_parser("serve", help="avvia interfaccia web e API")
+    serve = sub.add_parser("serve", help="start the web interface and API")
     serve.add_argument("--host", default="0.0.0.0")  # noqa: S104
     serve.add_argument("--port", type=int, default=8420)
     serve.set_defaults(func=_cmd_serve)
 
-    sub.add_parser("extractors", help="elenca gli estrattori disponibili").set_defaults(
+    sub.add_parser("extractors", help="list available extractors").set_defaults(
         func=_cmd_extractors)
     return parser
 

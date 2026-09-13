@@ -1,7 +1,7 @@
-"""Tipi scambiati fra il nucleo e gli estrattori.
+"""The few types exchanged between the core and the extractors.
 
-Sono volutamente pochi e semplici: un estrattore deve poter essere scritto
-leggendo una pagina sola di documentazione.
+Deliberately small: writing an extractor should never require reading more
+than one page of documentation.
 """
 
 from __future__ import annotations
@@ -12,40 +12,45 @@ from typing import Any
 
 @dataclass
 class Source:
-    """Cosa c'e' dall'altra parte di un URL: un file solo o una raccolta."""
+    """What sits behind a URL: a single file, or a collection."""
 
     title: str
-    #: "file" per un singolo elemento, "collection" per una raccolta ordinata
-    #: (una serie, un podcast, un album, un archivio).
+    #: "file" for a single item, "collection" for an ordered set of them
+    #: (a series, a podcast, an album, an archive).
     kind: str = "collection"
     items_count: int = 0
-    #: Se la raccolta puo' ancora crescere. Gli estrattori che lo sanno lo
-    #: dichiarano: il nucleo lo usa per decidere se ha senso ricontrollarla.
+    #: Whether the collection can still grow. Extractors that know this say so,
+    #: and the core uses it to decide whether re-checking is worth anything.
     ongoing: bool = False
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class Item:
-    """Un elemento scaricabile all'interno di una sorgente."""
+    """One downloadable element inside a source."""
 
-    #: Identificatore stabile nella sorgente: serve a ritrovare l'elemento
-    #: dopo un riavvio, quindi non deve dipendere dall'ordinamento.
+    #: Stable identifier within the source. It is how an item is found again
+    #: after a restart, so it must not depend on position: if the source
+    #: inserts something in the middle, everything else would shift and
+    #: already-downloaded files would be fetched a second time.
     key: str
     title: str
-    #: Numero d'ordine (episodio, traccia, capitolo), se il concetto ha senso.
+    #: Ordinal (episode, track, chapter) where the notion makes sense.
     index: int | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class Target:
-    """Dove andare a prendere davvero i byte di un elemento."""
+    """Where to actually fetch the bytes of one item."""
 
     url: str
-    #: Nome suggerito dalla sorgente. Il nucleo puo' ignorarlo e applicare il
-    #: proprio schema di denominazione.
+    #: Name suggested by the source. The core may ignore it and apply its own
+    #: naming scheme instead.
     filename: str
-    #: Header aggiuntivi richiesti per quella specifica richiesta (Referer,
-    #: token, cookie di sessione...).
+    #: Extra headers required by this particular request (Referer, tokens,
+    #: session cookies, a courtesy user agent...).
     headers: dict[str, str] = field(default_factory=dict)
+    #: Anything worth carrying alongside the file — licence and author, for
+    #: instance, which most free licences require you to keep.
+    metadata: dict[str, Any] = field(default_factory=dict)

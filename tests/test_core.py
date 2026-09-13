@@ -1,4 +1,4 @@
-"""Verifiche sul nucleo: portata, denominazione, ripresa, stato finale."""
+"""Core behaviour: throughput, naming, resuming, final status."""
 
 from __future__ import annotations
 
@@ -15,75 +15,70 @@ from sluice.models import Target
 from sluice.naming import Layout, sanitize
 
 
-# --------------------------------------------------------------- limitatore
-def test_limiter_blocca_oltre_il_tetto() -> None:
+# ------------------------------------------------------------------- limiter
+def test_limiter_blocks_past_the_ceiling() -> None:
     limiter = Limiter(1)
     limiter.acquire()
-    entrato = threading.Event()
+    entered = threading.Event()
 
-    def secondo() -> None:
-        limiter.acquire()
-        entrato.set()
-
-    threading.Thread(target=secondo, daemon=True).start()
-    assert not entrato.wait(0.2), "il secondo non doveva passare col tetto a 1"
+    threading.Thread(target=lambda: (limiter.acquire(), entered.set()), daemon=True).start()
+    assert not entered.wait(0.2), "the second one must not pass with a ceiling of 1"
 
     limiter.release()
-    assert entrato.wait(1), "liberato uno slot, il secondo doveva passare"
+    assert entered.wait(1), "once a slot is freed the second one must pass"
 
 
-def test_limiter_si_allarga_a_caldo() -> None:
-    """Alzare il tetto deve sbloccare subito chi era in attesa."""
+def test_limiter_widens_at_runtime() -> None:
+    """Raising the ceiling must immediately release whoever was waiting."""
     limiter = Limiter(1)
     limiter.acquire()
-    entrato = threading.Event()
+    entered = threading.Event()
 
-    threading.Thread(target=lambda: (limiter.acquire(), entrato.set()), daemon=True).start()
+    threading.Thread(target=lambda: (limiter.acquire(), entered.set()), daemon=True).start()
     time.sleep(0.1)
-    assert not entrato.is_set()
+    assert not entered.is_set()
 
     limiter.set_limit(2)
-    assert entrato.wait(1), "alzando il tetto l'attesa doveva sbloccarsi"
+    assert entered.wait(1), "raising the ceiling should unblock the waiter"
 
 
-def test_limiter_rifiuta_tetti_invalidi() -> None:
-    with pytest.raises(ValueError, match="almeno 1"):
+def test_limiter_rejects_invalid_ceilings() -> None:
+    with pytest.raises(ValueError, match="at least 1"):
         Limiter(0)
 
 
-# ------------------------------------------------------------ denominazione
-@pytest.mark.parametrize(("grezzo", "atteso"), [
-    ("Titolo: con due punti", "Titolo con due punti"),
+# -------------------------------------------------------------------- naming
+@pytest.mark.parametrize(("raw", "expected"), [
+    ("Title: with a colon", "Title with a colon"),
     ("a/b\\c", "abc"),
-    ("   spazi    doppi   ", "spazi doppi"),
-    ("...", "senza-nome"),
+    ("   double    spaces   ", "double spaces"),
+    ("...", "unnamed"),
 ])
-def test_sanitize(grezzo: str, atteso: str) -> None:
-    assert sanitize(grezzo) == atteso
+def test_sanitize(raw: str, expected: str) -> None:
+    assert sanitize(raw) == expected
 
 
-def test_layout_numera_e_raggruppa(tmp_path: Path) -> None:
-    layout = Layout()
-    percorso = layout.build(tmp_path, source="La Raccolta", title="Primo pezzo",
-                            index=3, suggested="qualcosa.mp3")
-    assert percorso == tmp_path / "La Raccolta" / "03 - Primo pezzo.mp3"
+def test_layout_numbers_and_groups(tmp_path: Path) -> None:
+    path = Layout().build(tmp_path, source="The Collection", title="First piece",
+                          index=3, suggested="whatever.mp3")
+    assert path == tmp_path / "The Collection" / "03 - First piece.mp3"
 
 
-def test_layout_file_singolo_senza_sottocartella(tmp_path: Path) -> None:
-    """Un file solo non va messo in una cartella che si chiama come lui."""
-    percorso = Layout.for_single_file().build(
+def test_layout_single_file_gets_no_subfolder(tmp_path: Path) -> None:
+    """One file must not be buried in a folder named after itself."""
+    path = Layout.for_single_file().build(
         tmp_path, source="README.md", title="README.md", index=1, suggested="README.md")
-    assert percorso == tmp_path / "README.md"
+    assert path == tmp_path / "README.md"
 
 
-def test_layout_schema_libreria_multimediale(tmp_path: Path) -> None:
+def test_layout_media_library_scheme(tmp_path: Path) -> None:
     layout = Layout(folder="{source}", filename="{source} S01E{index:02d}{ext}")
-    percorso = layout.build(tmp_path, source="Serie", title="ignorato",
-                            index=7, suggested="x.mkv")
-    assert percorso.name == "Serie S01E07.mkv"
+    path = layout.build(tmp_path, source="Series", title="ignored",
+                        index=7, suggested="x.mkv")
+    assert path.name == "Series S01E07.mkv"
 
 
-# ------------------------------------------------------------------ ripresa
+# ------------------------------------------------------------------ resuming
 class FakeResponse:
     def __init__(self, body: bytes, status: int = 200, headers: dict | None = None) -> None:
         self.body = body
@@ -106,85 +101,109 @@ class FakeResponse:
 
 
 class FakeSession:
-    """Sessione che risponde alle richieste parziali come farebbe un CDN."""
+    """A session that answers range requests the way a CDN would."""
 
-    def __init__(self, contenuto: bytes, *, accetta_range: bool = True) -> None:
-        self.contenuto = contenuto
-        self.accetta_range = accetta_range
-        self.richieste: list[dict] = []
+    def __init__(self, content: bytes, *, accepts_range: bool = True) -> None:
+        self.content = content
+        self.accepts_range = accepts_range
+        self.requests: list[dict] = []
 
     def get(self, url: str, **kwargs) -> FakeResponse:  # noqa: ANN003, ARG002
         headers = kwargs.get("headers") or {}
-        self.richieste.append(headers)
-        intervallo = headers.get("Range")
-        if intervallo and self.accetta_range:
-            inizio = int(intervallo.split("=")[1].split("-")[0])
-            resto = self.contenuto[inizio:]
-            return FakeResponse(resto, status=206,
-                                headers={"content-length": str(len(resto))})
-        return FakeResponse(self.contenuto)
+        self.requests.append(headers)
+        wanted = headers.get("Range")
+        if wanted and self.accepts_range:
+            start = int(wanted.split("=")[1].split("-")[0])
+            rest = self.content[start:]
+            return FakeResponse(rest, status=206, headers={"content-length": str(len(rest))})
+        return FakeResponse(self.content)
 
 
-def test_download_completo(tmp_path: Path) -> None:
-    sessione = FakeSession(b"0123456789")
-    destinazione = tmp_path / "file.bin"
-    download(Target(url="http://x/file.bin", filename="file.bin"), destinazione, sessione)
-    assert destinazione.read_bytes() == b"0123456789"
-    assert not (tmp_path / "file.bin.part").exists(), "il .part va rimosso a fine lavoro"
+def test_download_complete(tmp_path: Path) -> None:
+    session = FakeSession(b"0123456789")
+    destination = tmp_path / "file.bin"
+    download(Target(url="http://x/file.bin", filename="file.bin"), destination, session)
+    assert destination.read_bytes() == b"0123456789"
+    assert not (tmp_path / "file.bin.part").exists(), "the .part must be gone when finished"
 
 
-def test_download_riprende_dal_punto_di_interruzione(tmp_path: Path) -> None:
-    """Il pezzo gia' scaricato non va ributtato via."""
-    destinazione = tmp_path / "file.bin"
-    (tmp_path / "file.bin.part").write_bytes(b"01234")   # interrotto a meta'
+def test_download_resumes_where_it_stopped(tmp_path: Path) -> None:
+    """What was already fetched must not be thrown away."""
+    destination = tmp_path / "file.bin"
+    (tmp_path / "file.bin.part").write_bytes(b"01234")   # interrupted half-way
 
-    sessione = FakeSession(b"0123456789")
-    download(Target(url="http://x/file.bin", filename="file.bin"), destinazione, sessione)
+    session = FakeSession(b"0123456789")
+    download(Target(url="http://x/file.bin", filename="file.bin"), destination, session)
 
-    assert destinazione.read_bytes() == b"0123456789"
-    assert sessione.richieste[0].get("Range") == "bytes=5-"
+    assert destination.read_bytes() == b"0123456789"
+    assert session.requests[0].get("Range") == "bytes=5-"
 
 
-def test_download_riparte_da_zero_se_il_server_ignora_la_ripresa(tmp_path: Path) -> None:
-    destinazione = tmp_path / "file.bin"
+def test_download_restarts_when_server_ignores_range(tmp_path: Path) -> None:
+    destination = tmp_path / "file.bin"
     (tmp_path / "file.bin.part").write_bytes(b"01234")
 
-    sessione = FakeSession(b"0123456789", accetta_range=False)
-    download(Target(url="http://x/file.bin", filename="file.bin"), destinazione, sessione)
+    session = FakeSession(b"0123456789", accepts_range=False)
+    download(Target(url="http://x/file.bin", filename="file.bin"), destination, session)
 
-    assert destinazione.read_bytes() == b"0123456789", "niente byte duplicati in testa"
-
-
-def test_download_salta_i_file_gia_presenti(tmp_path: Path) -> None:
-    destinazione = tmp_path / "file.bin"
-    destinazione.write_bytes(b"gia' qui")
-    sessione = FakeSession(b"nuovo contenuto")
-
-    download(Target(url="http://x/file.bin", filename="file.bin"), destinazione, sessione)
-
-    assert destinazione.read_bytes() == b"gia' qui"
-    assert sessione.richieste == [], "non doveva nemmeno chiedere"
+    assert destination.read_bytes() == b"0123456789", "no duplicated bytes at the head"
 
 
-# ------------------------------------------------------------- stato finale
-@pytest.mark.parametrize(("stati", "atteso"), [
+def test_download_skips_files_already_there(tmp_path: Path) -> None:
+    destination = tmp_path / "file.bin"
+    destination.write_bytes(b"already here")
+    session = FakeSession(b"new content")
+
+    download(Target(url="http://x/file.bin", filename="file.bin"), destination, session)
+
+    assert destination.read_bytes() == b"already here"
+    assert session.requests == [], "it should not even have asked"
+
+
+# -------------------------------------------------------------- final status
+@pytest.mark.parametrize(("states", "expected"), [
     (["done", "done"], "done"),
     (["done", "failed"], "partial"),
     (["failed", "failed"], "failed"),
-    # Il caso che conta: dichiarare finito un lavoro con pezzi ancora in
-    # sospeso e' il modo piu' sicuro per perderli di vista per sempre.
+    # The one that matters: calling a job finished while parts of it are still
+    # pending is the surest way to lose track of them for good.
     (["done", "queued"], "interrupted"),
     (["done", "transferring"], "interrupted"),
 ])
-def test_stato_finale(stati: list[str], atteso: str) -> None:
-    job = {"items": {str(n): {"status": s} for n, s in enumerate(stati)}}
+def test_final_status(states: list[str], expected: str) -> None:
+    job = {"items": {str(n): {"status": s} for n, s in enumerate(states)}}
     Engine._finalize(job)  # noqa: SLF001
-    assert job["status"] == atteso
+    assert job["status"] == expected
 
 
-def test_incomplete_ignora_i_lavori_in_corso() -> None:
+# ----------------------------------------------------------- configuration
+def test_cli_flags_do_not_shadow_the_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Omitted flags must leave the environment in charge.
+
+    When the flags defaulted to "./downloads" and "./state" they were passed
+    unconditionally, silently overriding SLUICE_DOWNLOAD_ROOT and
+    SLUICE_STATE_DIR — which is how a container ends up writing its queue into
+    a working directory it has no permission on.
+    """
+    import argparse
+
+    from sluice.cli import _config
+
+    monkeypatch.setenv("SLUICE_DOWNLOAD_ROOT", "/downloads")
+    monkeypatch.setenv("SLUICE_STATE_DIR", "/state")
+
+    from_env = _config(argparse.Namespace(output=None, state=None))
+    assert from_env.download_root == Path("/downloads")
+    assert from_env.state_dir == Path("/state")
+
+    explicit = _config(argparse.Namespace(output="/tmp/elsewhere", state=None))
+    assert explicit.download_root == Path("/tmp/elsewhere"), "an explicit flag still wins"
+    assert explicit.state_dir == Path("/state")
+
+
+def test_incomplete_leaves_running_jobs_alone() -> None:
     job = {"status": "running", "items": {"a": {"status": "failed"}}}
-    assert Engine.incomplete(job) == [], "un lavoro in corso non si tocca"
+    assert Engine.incomplete(job) == [], "a running job must not be touched"
 
     job["status"] = "interrupted"
     assert Engine.incomplete(job) == ["a"]

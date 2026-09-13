@@ -1,4 +1,4 @@
-"""Estrattore per un semplice collegamento HTTP(S) a un file."""
+"""Extractor for a plain HTTP(S) link to a file."""
 
 from __future__ import annotations
 
@@ -14,14 +14,15 @@ if TYPE_CHECKING:
 
 
 class DirectExtractor(Extractor):
-    """Il caso piu' semplice: l'URL e' gia' il file da scaricare.
+    """The simplest case: the URL already is the file to download.
 
-    Fa anche da esempio minimo per chi ne scrive uno nuovo: sono quattro
-    metodi e nessuno di questi tocca il disco o la rete piu' del necessario.
+    It doubles as the smallest possible example for anyone writing a new
+    extractor — four methods, none of which touches the disk or does more
+    network work than strictly needed.
     """
 
     name = "direct"
-    description = "Collegamento diretto a un file HTTP(S)"
+    description = "Direct HTTP(S) link to a file"
 
     @classmethod
     def matches(cls, url: str) -> bool:
@@ -36,15 +37,14 @@ class DirectExtractor(Extractor):
         title = self._filename(url)
         size = 0
         try:
-            # HEAD e' solo cortesia: se il server non la gestisce si prosegue
-            # lo stesso, la dimensione la si scopre in fase di scaricamento.
+            # HEAD is a courtesy only: if the server does not support it we
+            # carry on, and learn the size during the transfer instead.
             response = ctx.session.head(url, timeout=ctx.timeout, allow_redirects=True)
             if response.ok:
                 size = int(response.headers.get("content-length", 0))
-        except Exception:  # noqa: BLE001 - informazione facoltativa
+        except Exception:  # noqa: BLE001 - optional information
             size = 0
-        return Source(title=title, kind="file", items_count=1,
-                      metadata={"size": size})
+        return Source(title=title, kind="file", items_count=1, metadata={"size": size})
 
     def items(self, url: str, ctx: Context) -> list[Item]:
         return [Item(key=url, title=self._filename(url), index=1)]

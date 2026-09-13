@@ -1,4 +1,4 @@
-"""Scaricamento di un singolo file, con ripresa da dove si era interrotto."""
+"""Downloading one file, resuming from wherever it was interrupted."""
 
 from __future__ import annotations
 
@@ -39,15 +39,15 @@ def download(
     timeout: int = 30,
     on_progress: ProgressCallback | None = None,
 ) -> Path:
-    """Scarica `target` in `destination`, riprendendo se possibile.
+    """Download `target` into `destination`, resuming where possible.
 
-    Il file cresce con il suffisso ``.part`` e viene rinominato solo a
-    trasferimento concluso: chi guarda la cartella (un server multimediale,
-    uno script) non vede mai un file incompleto come se fosse buono.
+    The file grows under a ``.part`` suffix and is renamed only once the
+    transfer completes, so whatever watches the folder — a media server, a
+    script — never sees a half-written file and mistakes it for a finished one.
 
-    Se un ``.part`` esiste gia' si chiede al server la parte mancante. Non
-    tutti i server accettano le richieste parziali: se risponde 200 invece di
-    206 si riparte da zero, senza fallire.
+    If a ``.part`` is already there, only the missing range is requested. Not
+    every server honours range requests: when one answers 200 instead of 206
+    the download simply restarts from the beginning rather than failing.
     """
     destination.parent.mkdir(parents=True, exist_ok=True)
     if destination.exists() and destination.stat().st_size > 0:
@@ -64,7 +64,7 @@ def download(
         response.raise_for_status()
         resuming = resume_from > 0 and response.status_code == HTTP_PARTIAL_CONTENT
         if resume_from and not resuming:
-            logger.info("Ripresa non accettata per %s: riparto da capo", destination.name)
+            logger.info("Resume refused for %s: starting over", destination.name)
 
         progress = Progress(
             downloaded=resume_from if resuming else 0,

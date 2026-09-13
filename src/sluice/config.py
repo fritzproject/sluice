@@ -1,12 +1,12 @@
-"""Impostazioni: valori iniziali da ambiente, poi modificabili a caldo."""
+"""Settings: initial values from the environment, then adjustable at runtime."""
 
 from __future__ import annotations
 
 import os
-from dataclasses import asdict, dataclass, fields
+from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 
-#: Intervalli ammessi per le impostazioni numeriche regolabili.
+#: Accepted ranges for the adjustable numeric settings.
 BOUNDS: dict[str, tuple[float, float]] = {
     "concurrent_transfers": (1, 32),
     "parallel_sources": (1, 16),
@@ -21,32 +21,48 @@ def _env(name: str, default: str) -> str:
     return os.environ.get(f"SLUICE_{name.upper()}", default)
 
 
+# Read through default_factory, not as a plain default: a plain default is
+# evaluated once when the module is imported, so anything that sets an
+# environment variable afterwards — a test, an embedding application — would
+# be silently ignored.
+def _env_int(name: str, default: str):  # noqa: ANN202
+    return field(default_factory=lambda: int(_env(name, default)))
+
+
+def _env_float(name: str, default: str):  # noqa: ANN202
+    return field(default_factory=lambda: float(_env(name, default)))
+
+
+def _env_path(name: str, default: str):  # noqa: ANN202
+    return field(default_factory=lambda: Path(_env(name, default)))
+
+
 @dataclass
 class Settings:
-    """Regolazioni di portata e comportamento.
+    """Throughput and behaviour knobs.
 
-    Sono separate dalla configurazione di avvio (cartelle, proxy) perche'
-    cambiano in continuazione durante l'uso, mentre le altre no.
+    Kept apart from the startup configuration (folders, proxies) because these
+    change constantly while the program runs, and those do not.
     """
 
-    #: Trasferimenti simultanei complessivi: e' il tetto vero.
-    concurrent_transfers: int = int(_env("concurrent_transfers", "4"))
-    #: Fra quante sorgenti distribuirli. Serve perche' una raccolta di un solo
-    #: elemento, da sola, lascerebbe inutilizzati gli altri posti disponibili.
-    parallel_sources: int = int(_env("parallel_sources", "3"))
-    #: Pausa casuale prima di ogni elemento: evita di presentarsi a una
-    #: sorgente come una raffica di richieste identiche.
-    pacing_min_seconds: float = float(_env("pacing_min_seconds", "0"))
-    pacing_max_seconds: float = float(_env("pacing_max_seconds", "0"))
-    max_retries: int = int(_env("max_retries", "4"))
-    #: Ogni quanto ricontrollare le raccolte ancora aperte.
-    recheck_interval_seconds: int = int(_env("recheck_interval_seconds", "21600"))
+    #: Total simultaneous transfers: this is the real ceiling.
+    concurrent_transfers: int = _env_int("concurrent_transfers", "4")
+    #: How many sources to spread them across. Needed because a collection with
+    #: a single item would otherwise hold a slot and leave the others idle.
+    parallel_sources: int = _env_int("parallel_sources", "3")
+    #: Random pause before each item: avoids presenting a source with a burst
+    #: of identical back-to-back requests.
+    pacing_min_seconds: float = _env_float("pacing_min_seconds", "0")
+    pacing_max_seconds: float = _env_float("pacing_max_seconds", "0")
+    max_retries: int = _env_int("max_retries", "4")
+    #: How often to re-check collections that can still grow.
+    recheck_interval_seconds: int = _env_int("recheck_interval_seconds", "21600")
 
     def as_dict(self) -> dict:
         return asdict(self)
 
     def update(self, values: dict) -> dict:
-        """Applica solo i campi noti, dopo averli validati. Restituisce i cambiati."""
+        """Apply known fields after validating them. Returns what changed."""
         known = {f.name for f in fields(self)}
         applied: dict = {}
         for key, raw in values.items():
@@ -55,7 +71,7 @@ class Settings:
             low, high = BOUNDS[key]
             number = float(raw)
             if not low <= number <= high:
-                msg = f"{key} deve essere compreso fra {low:g} e {high:g}"
+                msg = f"{key} must be between {low:g} and {high:g}"
                 raise ValueError(msg)
             current = getattr(self, key)
             value = int(number) if isinstance(current, int) else number
@@ -70,24 +86,20 @@ class Settings:
 
 @dataclass
 class Config:
-    """Impostazioni di avvio, fisse per l'intera esecuzione."""
+    """Startup configuration, fixed for the lifetime of the process."""
 
-    download_root: Path = Path(_env("download_root", "./downloads"))
-    state_dir: Path = Path(_env("state_dir", "./state"))
-    #: Proxy usati a rotazione, uno per elemento. Risoluzione e scaricamento
-    #: di uno stesso elemento passano sempre dallo stesso, perche' certe
-    #: sorgenti legano il collegamento firmato a chi lo ha richiesto.
-    proxies: list[str] = None  # type: ignore[assignment]
-    user_agent: str = _env(
-        "user_agent",
-        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    )
-    timeout: int = int(_env("timeout", "30"))
+    download_root: Path = _env_path("download_root", "./downloads")
+    state_dir: Path = _env_path("state_dir", "./state")
+    #: Proxies used in rotation, one per item. Resolving and downloading the
+    #: same item always go through the same one, because some sources tie the
+    #: signed link to whoever requested it.
+    proxies: list[str] = field(
+        default_factory=lambda: [p.strip() for p in _env("proxies", "").split(",") if p.strip()])
+    user_agent: str = field(
+        default_factory=lambda: _env("user_agent",
+                                     "Sluice/0.2 (+https://github.com/fritzproject/sluice)"))
+    timeout: int = _env_int("timeout", "30")
 
     def __post_init__(self) -> None:
-        if self.proxies is None:
-            raw = _env("proxies", "")
-            self.proxies = [p.strip() for p in raw.split(",") if p.strip()]
         self.download_root = Path(self.download_root)
         self.state_dir = Path(self.state_dir)

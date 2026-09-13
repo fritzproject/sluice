@@ -1,4 +1,4 @@
-"""Limitatore di portata ridimensionabile mentre il lavoro e' gia' in corso."""
+"""A concurrency limit that can be resized while work is already running."""
 
 from __future__ import annotations
 
@@ -7,18 +7,18 @@ from types import TracebackType
 
 
 class Limiter:
-    """Semaforo il cui tetto si puo' alzare o abbassare a caldo.
+    """A semaphore whose ceiling can be raised or lowered at runtime.
 
-    `threading.Semaphore` nasce con un valore fisso: per poter cambiare i
-    trasferimenti simultanei da interfaccia, senza riavviare nulla, il conto va
-    tenuto a mano. Abbassando il limite i trasferimenti in corso proseguono
-    fino alla fine: si rientra nel nuovo tetto man mano che finiscono, invece
-    di interromperli a meta'.
+    `threading.Semaphore` is created with a fixed value, so changing how many
+    transfers run at once — from the UI, without restarting anything — means
+    keeping the count by hand. Lowering the limit never interrupts transfers
+    that already started: they run to completion, and the new ceiling takes
+    effect as slots are released.
     """
 
     def __init__(self, limit: int) -> None:
         if limit < 1:
-            msg = "il limite deve essere almeno 1"
+            msg = "limit must be at least 1"
             raise ValueError(msg)
         self._cond = threading.Condition()
         self._limit = limit
@@ -34,7 +34,7 @@ class Limiter:
 
     def set_limit(self, limit: int) -> None:
         if limit < 1:
-            msg = "il limite deve essere almeno 1"
+            msg = "limit must be at least 1"
             raise ValueError(msg)
         with self._cond:
             self._limit = limit

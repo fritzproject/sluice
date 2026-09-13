@@ -1,4 +1,4 @@
-"""Estrattore per feed RSS/Atom con allegati (podcast, videocast, bollettini)."""
+"""Extractor for RSS/Atom feeds with enclosures (podcasts, videocasts)."""
 
 from __future__ import annotations
 
@@ -18,15 +18,15 @@ NAMESPACES = {"atom": "http://www.w3.org/2005/Atom"}
 
 
 class RssExtractor(Extractor):
-    """Scarica gli allegati di un feed, dal piu' vecchio al piu' recente.
+    """Downloads a feed's enclosures, oldest first.
 
-    E' il caso d'uso che meglio mostra a cosa serve il nucleo: un podcast con
-    trecento puntate arretrate vuole esattamente coda, portata limitata,
-    ripresa dei trasferimenti interrotti e ricontrollo periodico per le nuove.
+    This is the case that shows best what the core is for: a podcast with
+    three hundred back episodes wants exactly a queue, a bounded transfer
+    rate, resumable transfers, and a periodic re-check for new ones.
     """
 
     name = "rss"
-    description = "Feed RSS/Atom con allegati (podcast e simili)"
+    description = "RSS/Atom feed with enclosures (podcasts and the like)"
 
     @classmethod
     def matches(cls, url: str) -> bool:
@@ -42,25 +42,24 @@ class RssExtractor(Extractor):
 
     @staticmethod
     def _entries(root: ET.Element) -> list[tuple[str, str]]:
-        """Coppie (titolo, url allegato), dalla piu' vecchia alla piu' recente."""
+        """(title, enclosure url) pairs, oldest first."""
         found: list[tuple[str, str]] = []
 
         for item in root.iter("item"):            # RSS 2.0
             enclosure = item.find("enclosure")
-            title = (item.findtext("title") or "senza titolo").strip()
+            title = (item.findtext("title") or "untitled").strip()
             if enclosure is not None and enclosure.get("url"):
                 found.append((title, enclosure.get("url", "")))
 
         for entry in root.iter(f"{{{NAMESPACES['atom']}}}entry"):   # Atom
-            title = (entry.findtext(f"{{{NAMESPACES['atom']}}}title")
-                     or "senza titolo").strip()
+            title = (entry.findtext(f"{{{NAMESPACES['atom']}}}title") or "untitled").strip()
             for link in entry.iter(f"{{{NAMESPACES['atom']}}}link"):
                 if link.get("rel") == "enclosure" and link.get("href"):
                     found.append((title, link.get("href", "")))
                     break
 
-        # I feed elencano il piu' recente per primo: invertiamo, cosi' la
-        # numerazione cresce col tempo come ci si aspetta da una raccolta.
+        # Feeds list the newest entry first: reversing makes the numbering grow
+        # with time, which is what anyone expects from a collection.
         return list(reversed(found))
 
     def inspect(self, url: str, ctx: Context) -> Source:
@@ -69,7 +68,7 @@ class RssExtractor(Extractor):
                  or root.findtext(f"{{{NAMESPACES['atom']}}}title")
                  or "Feed")
         entries = self._entries(root)
-        # Un feed puo' sempre ricevere nuove puntate: vale la pena ricontrollarlo.
+        # A feed can always receive new episodes: worth re-checking.
         return Source(title=title.strip(), kind="collection",
                       items_count=len(entries), ongoing=True)
 
@@ -81,6 +80,6 @@ class RssExtractor(Extractor):
     def resolve(self, item: Item, ctx: Context) -> Target:
         name = unquote(PurePosixPath(urlparse(item.key).path).name)
         if not name:
-            safe = re.sub(r"[^\w\s.-]", "", item.title).strip() or "puntata"
+            safe = re.sub(r"[^\w\s.-]", "", item.title).strip() or "episode"
             name = f"{safe}.mp3"
         return Target(url=item.key, filename=name)

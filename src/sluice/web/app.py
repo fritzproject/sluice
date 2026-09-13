@@ -1,4 +1,4 @@
-"""API HTTP e interfaccia web."""
+"""HTTP API and web interface."""
 
 from __future__ import annotations
 
@@ -26,9 +26,9 @@ def create_app(engine: Engine | None = None, *, config: Config | None = None,
 
     @app.after_request
     def cors(response):  # noqa: ANN001, ANN202
-        # L'interfaccia puo' essere servita da un'origine diversa (estensione
-        # del browser, pannello esterno): senza questi header la chiamata
-        # verrebbe bloccata.
+        # The interface may be served from a different origin (a browser
+        # extension, an external panel): without these headers the call would
+        # be blocked.
         response.headers["Access-Control-Allow-Origin"] = "*"
         response.headers["Access-Control-Allow-Headers"] = "Content-Type"
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, DELETE"
@@ -47,7 +47,7 @@ def create_app(engine: Engine | None = None, *, config: Config | None = None,
     def inspect():  # noqa: ANN202
         url = (request.json or {}).get("url", "").strip()
         if not url:
-            return jsonify({"error": "URL mancante"}), 400
+            return jsonify({"error": "missing URL"}), 400
         try:
             return jsonify(core().inspect(url))
         except ValueError as exc:
@@ -60,7 +60,7 @@ def create_app(engine: Engine | None = None, *, config: Config | None = None,
         data = request.json or {}
         url = data.get("url", "").strip()
         if not url:
-            return jsonify({"error": "URL mancante"}), 400
+            return jsonify({"error": "missing URL"}), 400
         try:
             job_id = core().submit(
                 url, data.get("items"), title=data.get("title"),
@@ -78,7 +78,7 @@ def create_app(engine: Engine | None = None, *, config: Config | None = None,
         try:
             return jsonify({"requeued": core().retry(job_id)})
         except KeyError:
-            return jsonify({"error": "lavoro sconosciuto"}), 404
+            return jsonify({"error": "unknown job"}), 404
 
     @app.post("/api/retry-all")
     def retry_all():  # noqa: ANN202
@@ -94,13 +94,13 @@ def create_app(engine: Engine | None = None, *, config: Config | None = None,
         data = request.json or {}
         url = data.get("url", "").strip()
         if not url:
-            return jsonify({"error": "URL mancante"}), 400
+            return jsonify({"error": "missing URL"}), 400
         try:
             info = core().inspect(url)
         except Exception as exc:  # noqa: BLE001
             return jsonify({"error": str(exc)[:160]}), 502
-        # Senza "prendi anche gli arretrati" si parte da quello che c'e' gia':
-        # verranno scaricati solo gli elementi futuri.
+        # Without "include existing" the starting point is what is already
+        # published: only future items will be fetched.
         known = 0 if data.get("include_existing") else len(info["items"])
         watch_id = core().watch(url, layout=data.get("layout"), known=known)
         core().watches[watch_id]["title"] = info["title"]
@@ -115,7 +115,7 @@ def create_app(engine: Engine | None = None, *, config: Config | None = None,
     @app.delete("/api/watches/<watch_id>")
     def remove_watch(watch_id: str):  # noqa: ANN202
         if not core().unwatch(watch_id):
-            return jsonify({"error": "sorgente non monitorata"}), 404
+            return jsonify({"error": "source is not watched"}), 404
         return jsonify({"removed": watch_id})
 
     @app.get("/api/settings")
@@ -129,7 +129,7 @@ def create_app(engine: Engine | None = None, *, config: Config | None = None,
             applied = core().settings.update(request.json or {})
         except (TypeError, ValueError) as exc:
             return jsonify({"error": str(exc)}), 400
-        core().apply_settings()   # ha effetto subito, senza riavvii
+        core().apply_settings()   # takes effect at once, no restart
         core().save()
         return jsonify({"settings": core().settings.as_dict(), "applied": applied})
 

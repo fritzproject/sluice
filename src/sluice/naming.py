@@ -1,4 +1,4 @@
-"""Come si chiamano i file una volta scaricati."""
+"""How downloaded files end up being named."""
 
 from __future__ import annotations
 
@@ -6,13 +6,13 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-#: Caratteri vietati su almeno uno dei sistemi supportati.
+#: Characters forbidden on at least one supported platform.
 INVALID_CHARS = re.compile(r'[\\/:*?"<>|]')
 COLLAPSE_SPACES = re.compile(r"\s{2,}")
 
 
-def sanitize(name: str, *, fallback: str = "senza-nome") -> str:
-    """Rende una stringa utilizzabile come nome di file o cartella."""
+def sanitize(name: str, *, fallback: str = "unnamed") -> str:
+    """Make a string usable as a file or folder name."""
     cleaned = INVALID_CHARS.sub("", name).strip(" .")
     cleaned = COLLAPSE_SPACES.sub(" ", cleaned)
     return cleaned or fallback
@@ -20,26 +20,24 @@ def sanitize(name: str, *, fallback: str = "senza-nome") -> str:
 
 @dataclass
 class Layout:
-    """Schema con cui comporre percorso e nome dei file scaricati.
+    """The scheme used to build the path and name of downloaded files.
 
-    I segnaposto disponibili sono ``{source}``, ``{title}``, ``{index}``,
-    ``{index:02d}`` e ``{ext}``. Gli schemi predefiniti mettono ogni raccolta
-    in una cartella propria e numerano gli elementi, che e' quello che serve
-    nel caso piu' comune.
+    Placeholders are ``{source}``, ``{title}``, ``{index}``, ``{index:02d}``
+    and ``{ext}``. The defaults put each collection in its own folder and
+    number the items, which is what the common case wants.
     """
 
-    #: Cartella in cui raggruppare gli elementi. Vuota: nessuna sottocartella,
-    #: che e' quello che serve per un file singolo (altrimenti finirebbe in una
-    #: cartella chiamata come lui).
+    #: Folder to group items under. Empty means no subfolder — what a single
+    #: file needs, or it would end up inside a folder named after itself.
     folder: str = "{source}"
     filename: str = "{index:02d} - {title}{ext}"
-    #: Schema alternativo per chi organizza una libreria multimediale: molti
-    #: server riconoscono le raccolte con la forma S01E01.
+    #: Alternative scheme for media libraries: most servers recognise
+    #: collections written in the S01E01 form.
     MEDIA_LIBRARY: str = "{source} S01E{index:02d}{ext}"
 
     @classmethod
     def for_single_file(cls) -> Layout:
-        """Schema adatto a una sorgente che contiene un solo file."""
+        """Scheme suited to a source holding exactly one file."""
         return cls(folder="", filename="{title}{ext}")
 
     def build(self, root: Path, *, source: str, title: str,

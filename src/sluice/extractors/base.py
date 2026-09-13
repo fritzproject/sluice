@@ -1,4 +1,4 @@
-"""Interfaccia che ogni estrattore deve implementare."""
+"""The interface every extractor implements."""
 
 from __future__ import annotations
 
@@ -14,51 +14,52 @@ if TYPE_CHECKING:
 
 @dataclass
 class Context:
-    """Quello che il nucleo mette a disposizione di un estrattore.
+    """What the core hands to an extractor.
 
-    La `session` e' la stessa per l'ispezione e per lo scaricamento di un
-    elemento, e non e' un dettaglio: alcune sorgenti firmano il collegamento
-    finale legandolo all'indirizzo che lo ha richiesto, quindi risolvere da un
-    posto e scaricare da un altro fallisce. Usando sempre la sessione ricevuta
-    si eredita gratis l'eventuale proxy e l'identita' di rete corretta.
+    The `session` is the same one used to inspect a source and to download its
+    items, and that is not a detail: some sources sign the final link against
+    the address that asked for it, so resolving from one place and downloading
+    from another fails. Using the session you are given inherits the right
+    network identity — including any proxy assigned to that item — for free.
     """
 
     session: requests.Session
-    #: Timeout consigliato per le richieste, in secondi.
+    #: Suggested timeout for requests, in seconds.
     timeout: int = 30
 
 
 class Extractor(ABC):
-    """Traduce un URL in elementi scaricabili.
+    """Turns a URL into downloadable items.
 
-    Un estrattore non scarica nulla e non tocca il disco: dice soltanto cosa
-    c'e' e dove prenderlo. Coda, ripresa, tentativi, denominazione e limiti
-    sono responsabilita' del nucleo, uguali per tutti.
+    An extractor downloads nothing and never touches the disk: it only says
+    what is there and where to get it. Queueing, resuming, retries, naming and
+    limits belong to the core, and work the same way for every extractor —
+    which means every extractor inherits improvements made there for free.
     """
 
-    #: Identificatore breve, usato nella configurazione e nei log.
+    #: Short identifier, used in configuration and logs.
     name: str = "extractor"
-    #: Descrizione di una riga mostrata nell'interfaccia.
+    #: One-line description shown in the interface.
     description: str = ""
 
     @classmethod
     @abstractmethod
     def matches(cls, url: str) -> bool:
-        """True se questo estrattore sa gestire l'URL."""
+        """True if this extractor can handle the URL. Must be fast: no network."""
 
     @abstractmethod
     def inspect(self, url: str, ctx: Context) -> Source:
-        """Descrive la sorgente senza scaricare gli elementi."""
+        """Describe the source without downloading its items."""
 
     @abstractmethod
     def items(self, url: str, ctx: Context) -> list[Item]:
-        """Elenca gli elementi disponibili, in ordine."""
+        """List the available items, in order."""
 
     @abstractmethod
     def resolve(self, item: Item, ctx: Context) -> Target:
-        """Restituisce il collegamento diretto per un singolo elemento.
+        """Return the direct link for a single item.
 
-        Viene chiamato appena prima dello scaricamento, e di nuovo a ogni
-        nuovo tentativo: i collegamenti a scadenza vanno quindi rigenerati
-        qui, non memorizzati.
+        Called right before the transfer, and again on every retry: links that
+        expire must therefore be generated here, never stored. On a third
+        attempt half an hour later, a cached link would already be dead.
         """

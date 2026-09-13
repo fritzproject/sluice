@@ -1,4 +1,4 @@
-"""Estrattore per gli elementi di Internet Archive (archive.org)."""
+"""Extractor for Internet Archive items (archive.org)."""
 
 from __future__ import annotations
 
@@ -15,22 +15,23 @@ ITEM_PATTERN = re.compile(r"archive\.org/(?:details|download)/([^/?#]+)")
 METADATA_ENDPOINT = "https://archive.org/metadata/{identifier}"
 DOWNLOAD_ENDPOINT = "https://archive.org/download/{identifier}/{name}"
 
-# File di servizio generati dall'archivio stesso: scaricarli non serve a nulla.
+# Housekeeping files the archive generates for itself: downloading them serves
+# no purpose and only inflates the item count.
 SKIPPED_FORMATS = {"Metadata", "Item Tile", "JSON", "Archive BitTorrent",
                    "Item CDX Index", "Item CDX Meta-Index", "Log", "CSV"}
 
 
 class ArchiveOrgExtractor(Extractor):
-    """Scarica i file di un elemento di Internet Archive.
+    """Downloads the files of an Internet Archive item.
 
-    Fondo enorme e liberamente accessibile: registrazioni di concerti
-    autorizzate, software e libri di pubblico dominio, archivi radiofonici.
-    Utile di per se', e ottimo banco di prova perche' gli elementi possono
-    contenere centinaia di file di dimensioni molto diverse.
+    A vast, openly accessible collection: authorised concert recordings,
+    public domain books and software, radio archives. Useful in its own right,
+    and a good stress test, since a single item can hold hundreds of files of
+    wildly different sizes.
     """
 
     name = "archive_org"
-    description = "Elementi di Internet Archive (archive.org)"
+    description = "Internet Archive items (archive.org)"
 
     @classmethod
     def matches(cls, url: str) -> bool:
@@ -40,7 +41,7 @@ class ArchiveOrgExtractor(Extractor):
     def _identifier(url: str) -> str:
         match = ITEM_PATTERN.search(url)
         if not match:
-            msg = f"URL di archive.org non riconosciuto: {url}"
+            msg = f"not an archive.org item URL: {url}"
             raise ValueError(msg)
         return match.group(1)
 
@@ -64,11 +65,12 @@ class ArchiveOrgExtractor(Extractor):
             title=str(info.get("title") or self._identifier(url)),
             kind="collection",
             items_count=len(files),
-            # Un elemento archiviato e' chiuso: non ha senso ricontrollarlo.
+            # An archived item is closed: re-checking it would find nothing.
             ongoing=False,
             metadata={"identifier": self._identifier(url),
                       "creator": info.get("creator", ""),
-                      "date": info.get("date", "")},
+                      "date": info.get("date", ""),
+                      "licence": info.get("licenseurl", "")},
         )
 
     def items(self, url: str, ctx: Context) -> list[Item]:

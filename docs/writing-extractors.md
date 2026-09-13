@@ -1,106 +1,119 @@
-# Scrivere un estrattore
+# Writing an extractor
 
-Un estrattore risponde a tre domande su un URL: **cosa c'è**, **quali elementi
-contiene**, e **dove prendere davvero i byte** di ciascuno.
+🇮🇹 [Leggi in italiano](writing-extractors.it.md)
 
-Non scarica niente e non tocca il disco. Coda, portata, tentativi, ripresa,
-denominazione e persistenza sono del nucleo, uguali per tutti: un estrattore
-eredita gratis ogni miglioria fatta lì.
+An extractor answers three questions about a URL: **what is there**, **which
+items it contains**, and **where to actually fetch the bytes** of each one.
 
-## I quattro metodi
+It downloads nothing and never touches the disk. Queueing, throughput,
+retries, resuming, naming and persistence belong to the core and work the same
+for everyone — so an extractor inherits every improvement made there for free.
+
+## The four methods
 
 ```python
 from sluice.extractors.base import Context, Extractor
 from sluice.models import Item, Source, Target
 
 
-class MioExtractor(Extractor):
-    name = "mio"
-    description = "Una riga che compare nell'interfaccia"
+class MyExtractor(Extractor):
+    name = "mine"
+    description = "One line, shown in the interface"
 
     @classmethod
     def matches(cls, url: str) -> bool:
-        """True se so gestire questo URL. Deve essere veloce: niente rete."""
-        return "esempio.test" in url
+        """True if I can handle this URL. Must be fast: no network."""
+        return "example.test" in url
 
     def inspect(self, url: str, ctx: Context) -> Source:
-        """Cosa c'è, senza scaricare gli elementi."""
-        dati = ctx.session.get(f"{url}/info", timeout=ctx.timeout).json()
+        """What is there, without downloading the items."""
+        data = ctx.session.get(f"{url}/info", timeout=ctx.timeout).json()
         return Source(
-            title=dati["titolo"],
-            kind="collection",          # oppure "file"
-            items_count=dati["quanti"],
-            ongoing=dati["ancora_aperta"],   # se può ancora crescere
+            title=data["title"],
+            kind="collection",            # or "file"
+            items_count=data["count"],
+            ongoing=data["still_open"],   # whether it can still grow
         )
 
     def items(self, url: str, ctx: Context) -> list[Item]:
-        """Gli elementi, in ordine."""
-        dati = ctx.session.get(f"{url}/elenco", timeout=ctx.timeout).json()
+        """The items, in order."""
+        data = ctx.session.get(f"{url}/list", timeout=ctx.timeout).json()
         return [
-            Item(key=voce["id"], title=voce["nome"], index=numero)
-            for numero, voce in enumerate(dati["voci"], start=1)
+            Item(key=entry["id"], title=entry["name"], index=number)
+            for number, entry in enumerate(data["entries"], start=1)
         ]
 
     def resolve(self, item: Item, ctx: Context) -> Target:
-        """Il collegamento diretto per un elemento."""
-        dati = ctx.session.get(f"/link/{item.key}", timeout=ctx.timeout).json()
-        return Target(url=dati["url"], filename=dati["nome"],
-                      headers={"Referer": "https://esempio.test/"})
+        """The direct link for one item."""
+        data = ctx.session.get(f"/link/{item.key}", timeout=ctx.timeout).json()
+        return Target(url=data["url"], filename=data["name"],
+                      headers={"Referer": "https://example.test/"})
 ```
 
-## Cinque cose da sapere
+## Five things worth knowing
 
-**`key` deve essere stabile.** È l'identificatore con cui un elemento viene
-ritrovato dopo un riavvio, quindi non può dipendere dalla posizione in elenco:
-se la sorgente inserisce qualcosa in mezzo, tutto il resto slitterebbe e il
-programma riscaricherebbe file già presenti.
+**`key` must be stable.** It is how an item is found again after a restart, so
+it cannot depend on position in a list: if the source inserts something in the
+middle, everything else shifts and already-downloaded files get fetched again.
 
-**`resolve()` viene chiamato a ogni tentativo**, non una volta sola. I
-collegamenti a scadenza vanno quindi *generati* lì, mai memorizzati: al terzo
-tentativo, mezz'ora dopo, un collegamento salvato sarebbe già scaduto.
+**`resolve()` is called on every attempt**, not once. Links that expire must
+therefore be *generated* there, never cached: on a third attempt half an hour
+later, a stored link is already dead.
 
-**Usa sempre `ctx.session`.** Alcune sorgenti firmano il collegamento finale
-legandolo all'indirizzo che lo ha richiesto: risolvere da un posto e scaricare
-da un altro fa fallire il trasferimento con un errore che sembra inspiegabile.
-La sessione passata nel contesto è la stessa che verrà usata per scaricare, e
-porta con sé l'eventuale proxy assegnato a quell'elemento.
+**Always use `ctx.session`.** Some sources sign the final link against the
+address that requested it, so resolving from one place and downloading from
+another fails with an error that looks inexplicable. The session you are given
+is the same one used for the transfer, and carries any proxy assigned to that
+item.
 
-**Dichiara `ongoing` con onestà.** Se `False`, il nucleo smette di ricontrollare
-la sorgente quando non resta nulla da prendere, invece di interrogarla per
-sempre a vuoto. Se la sorgente espone un proprio stato (concluso / in corso),
-usalo: è più affidabile di qualunque euristica sul titolo.
+**Be honest about `ongoing`.** When it is `False`, the core stops re-checking
+the source once nothing is left, instead of polling it forever. If the source
+publishes its own status (finished / in progress), use it: it beats any
+guesswork based on the title.
 
-**Lascia passare le eccezioni.** Non serve gestire tentativi o attese: il nucleo
-ci pensa, con attesa crescente, e mostra un messaggio compatto nell'interfaccia
-tenendo il dettaglio nel registro.
+**Let exceptions through.** There is no need to handle retries or back-off:
+the core does that, with growing delays, and shows a compact message in the
+interface while keeping the detail in the log.
 
-## Distribuzione
+## Carrying licence and attribution
 
-Un estrattore vive in un pacchetto suo e si dichiara come entry point:
-
-```toml
-# pyproject.toml del pacchetto dell'estrattore
-[project.entry-points."sluice.extractors"]
-mio = "mio_pacchetto.extractor:MioExtractor"
-```
-
-Installato il pacchetto, Sluice lo carica all'avvio. Gli estrattori registrati
-hanno precedenza su quelli inclusi, così si può sostituire un comportamento
-predefinito senza modificare il nucleo. Un estrattore che non si carica viene
-saltato con un errore nel registro: non impedisce l'avvio.
-
-## Prova
+`Target.metadata` travels with the item and is stored in the job state. Use it
+for anything that must not get lost — most free licences require crediting the
+author:
 
 ```python
-def test_elenco():
-    class SessioneFinta:
-        def get(self, url, **kwargs):
-            return FakeResponse({"titolo": "Prova", "quanti": 2})
-
-    ctx = Context(session=SessioneFinta())
-    elementi = MioExtractor().items("https://esempio.test/x", ctx)
-    assert [e.index for e in elementi] == [1, 2]
+return Target(url=info["url"], filename=item.title,
+              metadata={"licence": "CC BY-SA 4.0", "author": "A Photographer"})
 ```
 
-Gli estrattori si provano senza rete e senza disco: sono funzioni da URL a dati.
-Vedi `tests/test_extractors.py` per esempi completi su quelli inclusi.
+## Distribution
+
+An extractor lives in its own package and declares an entry point:
+
+```toml
+# pyproject.toml of the extractor package
+[project.entry-points."sluice.extractors"]
+mine = "my_package.extractor:MyExtractor"
+```
+
+Once the package is installed, Sluice loads it at startup. Registered
+extractors take precedence over the built-in ones, so a default behaviour can
+be replaced without touching the core. An extractor that fails to load is
+skipped with an error in the log: it never prevents startup.
+
+## Testing
+
+```python
+def test_listing():
+    class FakeSession:
+        def get(self, url, **kwargs):
+            return FakeResponse({"title": "Test", "count": 2})
+
+    ctx = Context(session=FakeSession())
+    items = MyExtractor().items("https://example.test/x", ctx)
+    assert [i.index for i in items] == [1, 2]
+```
+
+Extractors are testable without network and without disk: they are functions
+from a URL to data. See `tests/test_extractors.py` for complete examples
+covering the built-in ones.

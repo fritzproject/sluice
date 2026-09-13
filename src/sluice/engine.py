@@ -1,4 +1,4 @@
-"""Il nucleo: coda, portata, tentativi, ripresa e ricontrollo delle sorgenti."""
+"""The core: queue, throughput, retries, resuming and source re-checks."""
 
 from __future__ import annotations
 
@@ -9,7 +9,6 @@ import random
 import threading
 import time
 import uuid
-from pathlib import Path
 from typing import Any
 
 import requests
@@ -24,11 +23,11 @@ from sluice.store import Store
 
 logger = logging.getLogger(__name__)
 
-#: Quanti thread tengo pronti a prendere una sorgente. Quante ne lavorino
-#: davvero insieme lo decide il limitatore, che si regola a caldo.
+#: Threads standing by to pick up a source. How many actually work at once is
+#: decided by the limiter, which can be adjusted at runtime.
 SOURCE_WORKERS = 16
-#: Il timeout vale solo per l'ispezione della sorgente, mai per il
-#: trasferimento: un file grande e' lento per natura, non e' un blocco.
+#: The timeout covers inspecting a source only, never a transfer: a large file
+#: is slow by nature, and that is not a stall.
 INSPECT_TIMEOUT = 120
 
 TERMINAL_ITEM_STATES = {"done"}
@@ -36,12 +35,12 @@ ACTIVE_JOB_STATES = {"queued", "preparing", "running"}
 
 
 class Engine:
-    """Coordina estrattori, coda e trasferimenti.
+    """Coordinates extractors, the queue and the transfers.
 
-    Sa fare tre cose che sembrano ovvie ma che quasi sempre mancano: riprendere
-    un trasferimento interrotto invece di ributtarlo via, non dichiarare finito
-    un lavoro che ha ancora pezzi in sospeso, e sopravvivere a un riavvio senza
-    perdere la coda.
+    It does three things that sound obvious and are almost always missing:
+    resumes an interrupted transfer instead of throwing it away, refuses to
+    call a job finished while parts of it are still pending, and survives a
+    restart without losing the queue.
     """
 
     def __init__(self, config: Config | None = None, settings: Settings | None = None) -> None:
@@ -60,7 +59,7 @@ class Engine:
         self._proxy_lock = threading.Lock()
         self._started = False
 
-    # ------------------------------------------------------------------ avvio
+    # ---------------------------------------------------------------- startup
     def start(self) -> None:
         if self._started:
             return
@@ -80,13 +79,13 @@ class Engine:
             try:
                 self.settings.update(saved)
             except ValueError:
-                logger.warning("Impostazioni salvate non valide, uso i valori iniziali")
+                logger.warning("Saved settings are invalid, using the initial values")
         self.apply_settings()
 
-        # Si riprende qualunque lavoro con elementi non conclusi, non solo
-        # quelli che risultavano in corso: un riavvio puo' averne lasciato uno
-        # marcato come finito con dei pezzi ancora in sospeso, e senza questo
-        # controllo resterebbe fermo per sempre.
+        # Any job with unfinished items is resumed, not just the ones that were
+        # marked as running: a restart can leave a job flagged as finished with
+        # items still pending, and without this check it would sit there
+        # forever with nobody looking at it again.
         resumed = 0
         for job_id in self.order:
             job = self.jobs.get(job_id)
@@ -102,7 +101,7 @@ class Engine:
                 self._queue.put(job_id)
                 resumed += 1
         if resumed:
-            logger.info("Ripresi %d lavori dallo stato salvato", resumed)
+            logger.info("Resumed %d jobs from saved state", resumed)
 
     def apply_settings(self) -> None:
         self._transfer_slots.set_limit(self.settings.concurrent_transfers)
@@ -112,7 +111,7 @@ class Engine:
         self.store.save({"jobs": self.jobs, "order": self.order,
                          "watches": self.watches, "settings": self.settings.as_dict()})
 
-    # ------------------------------------------------------------------ rete
+    # ---------------------------------------------------------------- network
     def _session(self) -> requests.Session:
         session = requests.Session()
         session.headers.update({"User-Agent": self.config.user_agent})
@@ -122,15 +121,14 @@ class Engine:
             session.proxies.update({"http": proxy, "https": proxy})
         return session
 
-    # ------------------------------------------------------------------ API
+    # -------------------------------------------------------------------- API
     def inspect(self, url: str) -> dict[str, Any]:
-        """Guarda cosa c'e' a quell'URL, senza scaricare niente."""
+        """Look at what is behind a URL without downloading anything."""
         extractor_cls = extractors.find(url)
         if not extractor_cls:
-            msg = "nessun estrattore sa gestire questo URL"
+            msg = "no extractor can handle this URL"
             raise ValueError(msg)
-        session = self._session()
-        ctx = Context(session=session, timeout=self.config.timeout)
+        ctx = Context(session=self._session(), timeout=self.config.timeout)
         extractor = extractor_cls()
         source = extractor.inspect(url, ctx)
         items = extractor.items(url, ctx)
@@ -147,7 +145,7 @@ class Engine:
                watch: bool = False) -> str:
         extractor_cls = extractors.find(url)
         if not extractor_cls:
-            msg = "nessun estrattore sa gestire questo URL"
+            msg = "no extractor can handle this URL"
             raise ValueError(msg)
 
         job_id = uuid.uuid4().hex[:12]
@@ -155,9 +153,9 @@ class Engine:
             "id": job_id,
             "url": url,
             "extractor": extractor_cls.name,
-            # Il titolo si conosce gia' al momento dell'invio: salvarlo subito
-            # evita di mostrare lavori anonimi finche' non vengono presi in
-            # carico, che e' esattamente quando l'utente vuole sapere cosa sono.
+            # The title is already known at submit time: storing it right away
+            # avoids showing anonymous jobs until they are picked up, which is
+            # exactly when someone wants to know what they are.
             "title": title,
             "status": "queued",
             "items": {},
@@ -175,7 +173,7 @@ class Engine:
     def retry(self, job_id: str) -> int:
         job = self.jobs.get(job_id)
         if not job:
-            msg = "lavoro sconosciuto"
+            msg = "unknown job"
             raise KeyError(msg)
         pending = self.incomplete(job)
         if not pending:
@@ -187,7 +185,7 @@ class Engine:
         return len(pending)
 
     def retry_all(self) -> dict[str, int]:
-        """Rimette in coda tutto cio' che manca, su ogni lavoro fermo."""
+        """Re-queue everything still missing, across every idle job."""
         jobs = items = 0
         for job_id in list(self.order):
             count = self.retry(job_id) if self.jobs.get(job_id) else 0
@@ -198,13 +196,13 @@ class Engine:
 
     @staticmethod
     def incomplete(job: dict) -> list[str]:
-        """Elementi da recuperare: falliti o rimasti a meta'."""
+        """Items worth recovering: failed, or left half-done."""
         if job.get("status") in ACTIVE_JOB_STATES:
-            return []   # gia' in lavorazione: non si tocca
+            return []   # already being worked on: leave it alone
         return [key for key, state in job.get("items", {}).items()
                 if state.get("status") not in TERMINAL_ITEM_STATES]
 
-    # -------------------------------------------------------------- sorgenti
+    # ---------------------------------------------------------------- sources
     def watch(self, url: str, *, layout: dict | None = None, known: int = 0) -> str:
         for watch_id, existing in self.watches.items():
             if existing["url"] == url:
@@ -214,7 +212,7 @@ class Engine:
         watch_id = uuid.uuid4().hex[:8]
         self.watches[watch_id] = {
             "id": watch_id, "url": url, "title": None, "layout": layout or {},
-            # Da qui in poi: quello che c'e' gia' non si riscarica.
+            # From here on: whatever is already there is not downloaded again.
             "known": known, "enabled": True, "added": time.time(),
             "last_check": None, "last_new": None,
         }
@@ -249,12 +247,12 @@ class Engine:
                     found.append({"watch": watch["id"], "title": info["title"],
                                   "new": len(new_items)})
                 elif not info["ongoing"]:
-                    # Raccolta chiusa e niente di nuovo: smettiamo di
-                    # interrogare la sorgente a vuoto per sempre.
+                    # Collection closed and nothing new: stop polling the source
+                    # for the rest of time, which is what would happen otherwise.
                     watch["enabled"] = False
-                    watch["closed"] = "raccolta completa"
+                    watch["closed"] = "collection complete"
             except Exception as exc:  # noqa: BLE001
-                logger.warning("Ricontrollo fallito per %s: %s", watch["url"], exc)
+                logger.warning("Re-check failed for %s: %s", watch["url"], exc)
                 watch["last_error"] = str(exc)[:120]
             self.save()
         return found
@@ -265,9 +263,9 @@ class Engine:
             try:
                 self.check_watches()
             except Exception:  # noqa: BLE001
-                logger.exception("Errore nel ricontrollo delle sorgenti")
+                logger.exception("Error while re-checking sources")
 
-    # ---------------------------------------------------------- esecuzione
+    # -------------------------------------------------------------- execution
     def _source_worker(self) -> None:
         while True:
             job_id = self._queue.get()
@@ -276,9 +274,9 @@ class Engine:
                     with self._source_slots:
                         self._run(job_id)
             except BaseException:  # noqa: BLE001
-                # Nemmeno un SystemExit sollevato da una libreria deve poter
-                # uccidere il worker: se muore, la coda si ferma in silenzio.
-                logger.exception("Errore non gestito sul lavoro %s", job_id)
+                # Not even a SystemExit raised by some library may kill this
+                # worker: if it dies, the queue stops silently.
+                logger.exception("Unhandled error on job %s", job_id)
             finally:
                 self._queue.task_done()
 
@@ -289,7 +287,7 @@ class Engine:
 
         extractor_cls = extractors.find(job["url"])
         if not extractor_cls:
-            job.update({"status": "failed", "error": "estrattore non disponibile"})
+            job.update({"status": "failed", "error": "extractor no longer available"})
             self.save()
             return
         extractor = extractor_cls()
@@ -300,8 +298,7 @@ class Engine:
 
             def prepare() -> None:
                 try:
-                    session = self._session()
-                    ctx = Context(session=session, timeout=self.config.timeout)
+                    ctx = Context(session=self._session(), timeout=self.config.timeout)
                     result["source"] = extractor.inspect(job["url"], ctx)
                     result["items"] = extractor.items(job["url"], ctx)
                 except Exception as exc:  # noqa: BLE001
@@ -312,7 +309,7 @@ class Engine:
             threading.Thread(target=prepare, daemon=True).start()
             if not done.wait(INSPECT_TIMEOUT):
                 job.update({"status": "failed",
-                            "error": f"la sorgente non risponde entro {INSPECT_TIMEOUT}s"})
+                            "error": f"source did not answer within {INSPECT_TIMEOUT}s"})
                 self.save()
                 return
             if "error" in result:
@@ -335,10 +332,9 @@ class Engine:
                 if job["items"][item.key]["status"] not in TERMINAL_ITEM_STATES:
                     pending.put(item)
 
-            # Tanti thread quanti i trasferimenti consentiti, non uno per
-            # elemento: con una raccolta da centinaia di file gli altri
-            # resterebbero comunque fermi, e intanto occuperebbero memoria
-            # sottraendo spazio alle altre sorgenti in lavorazione.
+            # As many threads as permitted transfers, not one per item: with a
+            # collection of hundreds of files the rest would sit blocked anyway,
+            # while still taking memory away from the other sources in flight.
             worker_count = max(1, min(pending.qsize(), self.settings.concurrent_transfers))
             threads = [
                 threading.Thread(target=self._item_worker,
@@ -352,7 +348,7 @@ class Engine:
 
             self._finalize(job)
         except Exception as exc:  # noqa: BLE001
-            logger.exception("Lavoro %s fallito", job_id)
+            logger.exception("Job %s failed", job_id)
             job.update({"status": "failed", "error": str(exc)[:160]})
         finally:
             self.save()
@@ -360,8 +356,8 @@ class Engine:
     def _item_worker(self, job_id: str, extractor: Any, source: Any,
                      pending: queue.Queue) -> None:
         job = self.jobs[job_id]
-        # Senza uno schema esplicito si sceglie in base alla sorgente: un file
-        # singolo non va infilato in una cartella che porta il suo stesso nome.
+        # Without an explicit scheme, pick one from the source: a single file
+        # must not be buried in a folder carrying its own name.
         layout = (Layout(**job["layout"]) if job.get("layout")
                   else Layout.for_single_file() if source.kind == "file"
                   else Layout())
@@ -373,7 +369,7 @@ class Engine:
             try:
                 self._transfer(job, extractor, source, item, layout)
             except Exception:  # noqa: BLE001
-                logger.exception("Elemento %s non gestito", item.key)
+                logger.exception("Unhandled error on item %s", item.key)
             finally:
                 pending.task_done()
 
@@ -391,9 +387,9 @@ class Engine:
                 ctx = Context(session=session, timeout=self.config.timeout)
                 try:
                     state["status"] = "transferring" if attempt == 1 else f"retry {attempt}"
-                    # Risoluzione e scaricamento condividono la sessione: se la
-                    # sorgente firma il collegamento legandolo a chi lo chiede,
-                    # separarli lo farebbe rifiutare.
+                    # Resolving and downloading share one session: if the source
+                    # signs the link against whoever asked for it, splitting the
+                    # two would get the transfer refused.
                     target = extractor.resolve(item, ctx)
                     destination = layout.build(
                         self.config.download_root, source=source.title,
@@ -407,11 +403,15 @@ class Engine:
                              timeout=self.config.timeout, on_progress=report)
                     state.update({"status": "done", "speed": 0, "error": None,
                                   "path": str(destination)})
+                    if target.metadata:
+                        # Licence and attribution travel with the item: most
+                        # free licences require crediting the author.
+                        state["metadata"] = target.metadata
                     self.save()
                     return
                 except Exception as exc:  # noqa: BLE001
                     state["error"] = self._short_error(exc)
-                    logger.warning("%s: tentativo %d/%d fallito (%s)",
+                    logger.warning("%s: attempt %d/%d failed (%s)",
                                    item.title, attempt, self.settings.max_retries, exc)
                     if attempt == self.settings.max_retries:
                         state.update({"status": "failed", "speed": 0})
@@ -421,14 +421,14 @@ class Engine:
 
     @staticmethod
     def _short_error(exc: Exception) -> str:
-        """Messaggio compatto per l'interfaccia: il resto sta nel registro."""
+        """Compact message for the interface; the rest stays in the log."""
         response = getattr(exc, "response", None)
         if response is not None:
             return f"HTTP {response.status_code}"
         if isinstance(exc, requests.Timeout):
-            return "timeout di rete"
+            return "network timeout"
         if isinstance(exc, requests.ConnectionError):
-            return "connessione interrotta"
+            return "connection dropped"
         return str(exc)[:80]
 
     @staticmethod
@@ -437,8 +437,8 @@ class Engine:
         done = states.count("done")
         failed = states.count("failed")
         pending = len(states) - done - failed
-        # Un lavoro con pezzi ancora in sospeso non e' "finito": dichiararlo
-        # tale e' il modo piu' semplice per perderli di vista per sempre.
+        # A job with items still pending is not "done": saying otherwise is the
+        # surest way to lose track of them for good.
         if pending:
             job["status"] = "interrupted"
         elif failed and done:
@@ -448,7 +448,7 @@ class Engine:
         else:
             job["status"] = "done"
 
-    # ------------------------------------------------------------- riepilogo
+    # ---------------------------------------------------------------- summary
     def snapshot(self) -> dict[str, Any]:
         jobs = [self.jobs[j] for j in self.order if j in self.jobs]
         speed = sum(i.get("speed") or 0 for job in jobs

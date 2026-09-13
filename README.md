@@ -1,128 +1,180 @@
 # Sluice
 
-Gestore di download a moduli. Il nucleo si occupa di **coda, portata regolabile,
-tentativi, ripresa dei trasferimenti interrotti, denominazione dei file e
-ricontrollo periodico delle sorgenti**. Cosa ci sia dietro un URL lo dicono gli
-**estrattori**, moduli indipendenti che il nucleo non conosce singolarmente.
+**A pluggable download manager.** The core handles the queue, adjustable
+throughput, retries, resuming interrupted transfers, file naming and
+re-checking sources that grow. What sits behind a URL is the job of
+**extractors** — independent modules the core knows nothing about in
+particular.
 
-Una chiusa è un canale con una paratoia che regola il flusso: si apre di più
-quando la banda lo permette, si stringe quando serve andare piano. È esattamente
-quello che fa questo programma.
+🇮🇹 [Leggi in italiano](README.it.md) · 📦 [Install guide](docs/install.md) ·
+🧩 [Write an extractor](docs/writing-extractors.md)
 
----
-
-## Perché
-
-Scaricare un file è banale. Scaricarne cinquecento senza perdere pezzi molto meno:
-
-- il programma si riavvia a metà e i file incompleti restano lì, morti
-- un lavoro viene dato per "completato" mentre ha ancora elementi in sospeso, e
-  nessuno se ne accorge più
-- si scarica tutto insieme finché la sorgente comincia a rifiutare le richieste
-- una raccolta di un solo elemento occupa un posto e ne lascia fermi altri quattro
-- gli elementi nuovi di una raccolta che cresce vanno cercati a mano ogni volta
-
-Sluice nasce da questi problemi, incontrati uno per uno. Le soluzioni sono nel
-nucleo, quindi valgono per qualunque estrattore, presente o futuro.
+A sluice is a channel with a gate that controls the flow: opened wider when
+there is room, narrowed when things need to go slowly. That is the whole idea.
 
 ---
 
-## Caratteristiche
+## Why
+
+Downloading one file is trivial. Downloading five hundred without losing any
+is not:
+
+- the program restarts half-way and the incomplete files sit there, dead
+- a job is reported "complete" while items are still pending, and nobody
+  ever notices
+- everything downloads at once until the source starts refusing requests
+- a collection holding a single item takes one slot and leaves the rest idle
+- new items in a growing collection have to be hunted down by hand every time
+
+Sluice exists because of those five problems, met one at a time. The fixes
+live in the core, so they apply to every extractor — including yours.
+
+---
+
+## What it does
 
 | | |
 |---|---|
-| **Ripresa** | i trasferimenti interrotti ripartono dal punto esatto (richieste `Range`), con ricaduta automatica su un nuovo tentativo se il server non le accetta |
-| **Portata regolabile a caldo** | trasferimenti simultanei e sorgenti in parallelo si cambiano mentre il lavoro è in corso, senza riavviare |
-| **Stato onesto** | un lavoro con elementi in sospeso risulta `interrupted`, mai `done`: quello che manca resta visibile e recuperabile |
-| **Coda persistente** | riavvii e aggiornamenti non perdono niente, e alla ripartenza vengono riaccodati solo gli elementi mancanti |
-| **Recupero** | tentativi con attesa crescente, ripresa per singolo lavoro o per tutti in una volta |
-| **Sorveglianza** | le raccolte che possono crescere vengono ricontrollate, e i nuovi elementi si accodano da soli |
-| **Denominazione** | schemi con segnaposto, compresa la forma riconosciuta dai server multimediali |
-| **File `.part`** | il nome definitivo compare solo a trasferimento concluso: nessuno importa mai un file a metà |
-| **Uscite multiple** | proxy usati a rotazione; risoluzione e scaricamento di uno stesso elemento passano sempre dalla stessa uscita |
+| **Resume** | interrupted transfers restart from the exact byte (HTTP `Range`), falling back to a clean restart if the server refuses |
+| **Live throughput control** | simultaneous transfers and parallel sources change while work is running, no restart |
+| **Honest status** | a job with pending items reads `interrupted`, never `done`: what is missing stays visible and recoverable |
+| **Durable queue** | restarts and upgrades lose nothing, and only missing items are re-queued |
+| **Recovery** | retries with growing back-off, per job or everything at once |
+| **Watching** | collections that can grow are re-checked, and new items queue themselves |
+| **Naming** | placeholder templates, including the form media servers recognise |
+| **`.part` files** | the final name appears only when the transfer completes, so nothing ever imports a half-written file |
+| **Multiple exits** | proxies used in rotation; resolving and downloading one item always share the same exit |
 
-Interfaccia web, API HTTP e riga di comando.
+Web interface, HTTP API and CLI.
 
 ---
 
-## Installazione
+## Quick start
 
 ```bash
 pip install -e ".[web]"
+sluice serve --port 8420        # then open http://localhost:8420
 ```
 
-Oppure con Docker:
+With Docker — see the [install guide](docs/install.md) for volumes,
+permissions and reverse proxies:
 
 ```bash
 cp docker-compose.example.yml docker-compose.yml
 docker compose up -d --build
 ```
 
-## Uso
+---
+
+## Examples
+
+Real, lawful sources you can try right now.
+
+**A public domain book, in every format it is published in**
 
 ```bash
-sluice inspect https://esempio.test/feed.xml     # cosa c'è, senza scaricare
-sluice get https://esempio.test/feed.xml -o ~/Download
-sluice get https://esempio.test/feed.xml --watch # e prendi anche i futuri
-sluice serve --port 8420                         # interfaccia web e API
-sluice extractors                                # moduli disponibili
+sluice get https://www.gutenberg.org/ebooks/2009 -o ~/Books
 ```
 
-## Estrattori inclusi
+Project Gutenberg publishes works whose copyright has expired. Sluice fetches
+the EPUB, HTML and plain text versions and skips cover art and metadata files.
 
-| Nome | Cosa gestisce |
-|---|---|
-| `direct` | un collegamento HTTP(S) a un file |
-| `rss` | feed RSS/Atom con allegati (podcast, videocast) |
-| `archive_org` | elementi di Internet Archive |
+**An entire Wikimedia Commons category**
 
-Ne servono altri? Sono **quattro metodi**: vedi
-[docs/writing-extractors.md](docs/writing-extractors.md). Un estrattore si
-installa come pacchetto separato, senza toccare il nucleo.
+```bash
+sluice inspect https://commons.wikimedia.org/wiki/Category:Lighthouses_in_Italy
+sluice get https://commons.wikimedia.org/wiki/Category:Lighthouses_in_Italy -o ~/Pictures
+```
+
+Everything on Commons is public domain or freely licensed. Categories hold
+thousands of files and are paged through automatically. Each file carries its
+licence and author in the job data — free does not mean condition-free, and
+attribution is usually required.
+
+**A podcast, back catalogue and everything published afterwards**
+
+```bash
+sluice get https://feeds.example.org/show.xml --watch -o ~/Podcasts
+```
+
+`--watch` keeps the feed under review: new episodes queue themselves, and the
+back catalogue is fetched oldest-first so numbering grows with time.
+
+**A concert recording from Internet Archive**
+
+```bash
+sluice get https://archive.org/details/gd1977-05-08.sbd.hicks.4982.sbeok.shnf -o ~/Music
+```
+
+The Internet Archive holds authorised live recordings, public domain books,
+software and radio archives — single items can contain hundreds of files.
+
+**One file, straight**
+
+```bash
+sluice get https://example.org/dataset.zip -o ~/Downloads
+```
 
 ---
 
-## Configurazione
+## Built-in extractors
 
-Tutto via ambiente, con prefisso `SLUICE_`; i valori di portata si cambiano poi
-dall'interfaccia e vengono salvati.
+| Name | Handles |
+|---|---|
+| `gutenberg` | Project Gutenberg — public domain books |
+| `wikimedia` | Wikimedia Commons — freely licensed files and categories |
+| `archive_org` | Internet Archive items |
+| `rss` | RSS/Atom feeds with enclosures (podcasts, videocasts) |
+| `direct` | a plain HTTP(S) link to a file |
 
-| Variabile | Predefinito | |
+Need another source? An extractor is **four methods** and installs as a
+separate package — the core is never touched. See
+[docs/writing-extractors.md](docs/writing-extractors.md).
+
+---
+
+## Configuration
+
+Everything through the environment, prefixed `SLUICE_`. The throughput values
+are only starting points: they are adjustable from the interface afterwards
+and saved with the state.
+
+| Variable | Default | |
 |---|---|---|
-| `SLUICE_DOWNLOAD_ROOT` | `./downloads` | dove finiscono i file |
-| `SLUICE_STATE_DIR` | `./state` | coda e registro |
-| `SLUICE_CONCURRENT_TRANSFERS` | `4` | trasferimenti simultanei totali |
-| `SLUICE_PARALLEL_SOURCES` | `3` | quante sorgenti lavorare insieme |
-| `SLUICE_PACING_MIN_SECONDS` / `_MAX_` | `0` | pausa casuale fra un elemento e l'altro |
-| `SLUICE_MAX_RETRIES` | `4` | tentativi prima di arrendersi |
-| `SLUICE_RECHECK_INTERVAL_SECONDS` | `21600` | ogni quanto ricontrollare le sorgenti aperte |
-| `SLUICE_PROXIES` | — | uscite separate da virgola, usate a rotazione |
+| `SLUICE_DOWNLOAD_ROOT` | `./downloads` | where files land |
+| `SLUICE_STATE_DIR` | `./state` | queue and log |
+| `SLUICE_CONCURRENT_TRANSFERS` | `4` | total simultaneous transfers |
+| `SLUICE_PARALLEL_SOURCES` | `3` | how many sources to work at once |
+| `SLUICE_PACING_MIN_SECONDS` / `_MAX_` | `0` | random pause between items |
+| `SLUICE_MAX_RETRIES` | `4` | attempts before giving up |
+| `SLUICE_RECHECK_INTERVAL_SECONDS` | `21600` | how often watched sources are re-checked |
+| `SLUICE_PROXIES` | — | comma-separated exits, used in rotation |
 
 ## API
 
 | | |
 |---|---|
-| `POST /api/inspect` | `{url}` → cosa c'è, senza scaricare |
-| `POST /api/jobs` | `{url, items?, layout?, watch?}` → accoda |
-| `GET /api/jobs` | stato di tutto, più il riepilogo |
-| `POST /api/jobs/<id>/retry` | riprende quello che manca in un lavoro |
-| `POST /api/retry-all` | riprende quello che manca ovunque |
-| `GET·POST /api/watches`, `DELETE /api/watches/<id>` | sorgenti sorvegliate |
-| `POST /api/watches/check` | controlla subito, senza aspettare il giro |
-| `GET·POST /api/settings` | portata e comportamento, a caldo |
+| `POST /api/inspect` | `{url}` → what is there, without downloading |
+| `POST /api/jobs` | `{url, items?, layout?, watch?}` → queue it |
+| `GET /api/jobs` | everything, plus the summary |
+| `POST /api/jobs/<id>/retry` | recover what is missing in one job |
+| `POST /api/retry-all` | recover what is missing everywhere |
+| `GET·POST /api/watches`, `DELETE /api/watches/<id>` | watched sources |
+| `POST /api/watches/check` | check now, without waiting for the timer |
+| `GET·POST /api/settings` | throughput and behaviour, live |
 
-## Sviluppo
+## Development
 
 ```bash
 pip install -e ".[web,dev]"
-pytest
+pytest          # 32 tests, no network required
 ruff check .
 ```
 
-## Licenza
+## Licence
 
-MIT — vedi [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE).
 
-Gli estrattori distribuiti separatamente hanno licenza propria, e ciascuno
-risponde della sorgente che tratta: il nucleo non ne include e non ne promuove
-nessuno in particolare.
+Extractors distributed separately carry their own licence, and each is
+responsible for the source it handles. Sluice ships none for sources whose
+content is not freely available, and endorses none.

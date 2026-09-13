@@ -1,23 +1,36 @@
-# Esempio minimo. Copiare in docker-compose.yml e adattare i percorsi.
+# Copy to docker-compose.yml and adjust the paths.
+# Full walkthrough, permissions included: docs/install.md
 services:
   sluice:
     build: .
     container_name: sluice
     restart: unless-stopped
     ports:
-      - "8420:8420"
+      # Drop the "127.0.0.1:" prefix only if you want it reachable from the
+      # network. Sluice has no authentication of its own: anything that can
+      # reach this port can queue downloads and change settings.
+      - "127.0.0.1:8420:8420"
     environment:
       TZ: Europe/Rome
-      # Portata iniziale: poi si regola dall'interfaccia, a caldo.
+      # Must match the user that the other programs sharing /downloads run as,
+      # or they will not be able to move or import what Sluice writes.
+      # Find it with: id  ·  docker exec <other-container> id
+      PUID: "1000"
+      PGID: "1000"
+      # Starting points only: these are adjustable from the interface and are
+      # then saved to /state, which takes precedence from that moment on.
       SLUICE_CONCURRENT_TRANSFERS: "4"
       SLUICE_PARALLEL_SOURCES: "3"
-      # Pausa casuale fra un elemento e l'altro, in secondi. Utile con le
-      # sorgenti che mal sopportano raffiche di richieste ravvicinate.
+      # Random pause between items, in seconds. Worth setting against sources
+      # that dislike bursts of back-to-back requests.
       SLUICE_PACING_MIN_SECONDS: "0"
       SLUICE_PACING_MAX_SECONDS: "0"
-      # Uscite di rete usate a rotazione, una per elemento. Risoluzione e
-      # scaricamento di uno stesso elemento passano sempre dalla stessa.
+      # Network exits used in rotation, one per item. Resolving and downloading
+      # the same item always go through the same one.
       # SLUICE_PROXIES: "http://proxy-a:8888,http://proxy-b:8888"
     volumes:
-      - ./downloads:/downloads
+      # Where the files land. Share this one with your media server.
+      - /srv/downloads:/downloads
+      # Queue, settings and watched sources. Losing it loses the pending queue
+      # (not the downloaded files), so keep it on persistent storage.
       - ./state:/state
